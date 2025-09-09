@@ -10,7 +10,11 @@ class Settings(BaseSettings):
     db_user: str = Field(default="rota_user", env="DB_USER")
     db_pass: str = Field(default="supersecret", env="DB_PASS")
     database_url: str | None = Field(default=None, env="DATABASE_URL")
-
+    API_ORIGIN: str = Field(default="http://localhost:5173", env="API_ORIGIN")
+    JWT_SECRET: str = Field(env="JWT_SECRET")
+    COOKIE_NAME: str = Field(default="rota_session", env="COOKIE_NAME")
+    ENV: str = Field(default="dev", env="ENV")
+    
     # Pydantic v2: configurações via model_config
     model_config = SettingsConfigDict(
         env_file=".env",              # troque para ".env.docker" se rodar no compose
