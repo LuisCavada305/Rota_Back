@@ -1,46 +1,82 @@
-from sqlalchemy import Column, String, DateTime, func, Enum as SAEnum
-from sqlalchemy.dialects.sqlite import BLOB
-from sqlalchemy.orm import Mapped, mapped_column
-from app.models.base import Base
+# app/models/users.py
+from __future__ import annotations
+from datetime import datetime, date
+from typing import Optional
 from enum import Enum
-from app.models.roles import RolesEnum
-import uuid
-from pydantic import BaseModel, EmailStr, field_validator
+
+from sqlalchemy import String, DateTime, Date, func, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import ENUM as PGEnum
+from sqlalchemy.orm import Mapped, mapped_column
 
-def uuid4_str() -> str:
-    return str(uuid.uuid4())
+from app.models.base import Base
+from app.models.roles import RolesEnum  # RolesEnum(str, Enum): Admin/User/Manager
 
-class Sex(str, Enum):  
+# ---- Enums ----
+class Sex(str, Enum):
     Male = "M"
     Female = "F"
     Other = "O"
     NotSpecified = "N"
 
+# Helper para ENUM compatível (Postgres/SQLite)
+def db_enum(enum_cls, name: str, is_postgres: bool):
+    if is_postgres:
+        return PGEnum(
+            enum_cls,
+            name=name,
+            values_callable=lambda E: [e.value for e in E],
+            native_enum=True,
+            validate_strings=True,
+            create_type=False,  # deixe a migração criar
+        )
+    else:
+        # SQLite: usa SAEnum sem tipo nativo
+        return SAEnum(
+            enum_cls,
+            name=name,
+            values_callable=lambda E: [e.value for e in E],
+            native_enum=False,
+            validate_strings=True,
+        )
+
+# Detecta se a URL é Postgres (ajuste conforme sua app)
+from app.core.settings import settings
+IS_PG = settings.database_url.startswith("postgres")
+
 class User(Base):
     __tablename__ = "users"
 
     user_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
-    name: Mapped[str] = mapped_column(String, nullable=False)
+    email:   Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    name:    Mapped[str] = mapped_column(String, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
     name_for_certificate: Mapped[str] = mapped_column(String, nullable=False)
+
     sex: Mapped[Sex] = mapped_column(
-        PGEnum(
-            Sex,
-            name="sex_type",
-            values_callable=lambda E: [e.value for e in E],  # <-- força usar 'M','F','O','N'
-            native_enum=True,
-            validate_strings=True,
-            create_type=False,  # tipo já existe no PG
-        ),
+        db_enum(Sex, "sex_type", IS_PG),
         nullable=False,
         server_default=Sex.NotSpecified.value,  # "N"
     )
-    birthday: Mapped[str | None] = mapped_column(DateTime, nullable=True)
+
+    birthday: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    social_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Se não for obrigatório no registro, deixe nullable=True
+    username: Mapped[Optional[str]] = mapped_column(String, unique=True, index=True, nullable=True)
+
+    role: Mapped[RolesEnum] = mapped_column(
+        db_enum(RolesEnum, "roles_enum", IS_PG),
+        nullable=False,
+        server_default=RolesEnum.User.value,  # "User"
+    )
 
 
+# --------- Pydantic Schemas ---------
+from pydantic import BaseModel, EmailStr, field_validator
 
 class RegisterIn(BaseModel):
     email: EmailStr
@@ -48,27 +84,23 @@ class RegisterIn(BaseModel):
     name: str
     name_for_certificate: str
     sex: Sex
-    birthday: str
+    birthday: str  
     role: RolesEnum = RolesEnum.User
+    username: str 
+    social_name: Optional[str] = None  
 
     @field_validator("sex", mode="before")
     @classmethod
     def map_letters_to_enum(cls, v):
         if isinstance(v, str):
             mapping = {
-                "M": Sex.Male,
-                "F": Sex.Female,
-                "O": Sex.Other,
-                "N": Sex.NotSpecified,
-                "Male": Sex.Male,
-                "Female": Sex.Female,
-                "Other": Sex.Other,
-                "NotSpecified": Sex.NotSpecified,
+                "M": Sex.Male, "F": Sex.Female, "O": Sex.Other, "N": Sex.NotSpecified,
+                "Male": Sex.Male, "Female": Sex.Female, "Other": Sex.Other, "NotSpecified": Sex.NotSpecified,
             }
             if v in mapping:
                 return mapping[v]
         return v
-    
+
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
@@ -77,7 +109,6 @@ class LoginIn(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
-    name: str | None = None
+    name: Optional[str] = None
+    username: str
     role: RolesEnum = RolesEnum.User
-
-

@@ -3,6 +3,8 @@ import uuid
 from http.cookies import SimpleCookie
 from sqlalchemy import text, select
 from app.models.users import User
+import pytest
+from app.models.roles import RolesEnum
 
 # ---------- helpers ----------
 
@@ -35,6 +37,9 @@ def test_register_success(client, db_session):
         "name_for_certificate": "Test User",
         "sex": "NotSpecified",   # também testaremos "N" em outro caso
         "birthday": "2000-01-01",
+            "username": "testuser",
+            "social_name": "Test User",
+            "role": "User"
     }
 
     r = client.post("/auth/register", json=payload)
@@ -44,6 +49,7 @@ def test_register_success(client, db_session):
     assert isinstance(data["id"], int)
     # não deve vazar hash na resposta
     assert "password_hash" not in r.text
+    assert data["role"] == payload["role"]
 
 
 def test_register_conflict_on_duplicate_email(client, db_session):
@@ -57,6 +63,9 @@ def test_register_conflict_on_duplicate_email(client, db_session):
         "name_for_certificate": "A",
         "sex": "NotSpecified",
         "birthday": "2000-01-01",
+        "username": "dupuser",
+        "social_name": "Dup User",
+        "role": "User"
     }
 
     r1 = client.post("/auth/register", json=payload)
@@ -77,12 +86,16 @@ def test_register_accepts_short_sex_letter(client, db_session):
         "name_for_certificate": "Enum Short",
         "sex": "N",  # <- letra curta
         "birthday": "2000-01-01",
+        "username": "enumshort",
+        "social_name": "Enum Short"
+            ,"role": "User"
     }
 
     r = client.post("/auth/register", json=payload)
     assert r.status_code == 200, r.text
     data = r.json()["user"]
     assert data["email"] == email
+        # No response data assertion needed here, only status code checked
 
 # ---------- tests: login ----------
 
@@ -90,16 +103,22 @@ def test_login_success_and_cookie_flags(client, db_session):
     email = "login_ok@example.com"
     wipe_user(db_session, email)
 
-    # registra
-    reg = client.post("/auth/register", json={
+    payload = {
         "email": email,
         "password": "p@ss",
         "name": "U",
         "name_for_certificate": "U",
         "sex": "NotSpecified",
         "birthday": "2000-01-01",
-    })
+        "username": "loginuser",
+        "social_name": "Login User",
+        "role": "User"
+    }
+    reg = client.post("/auth/register", json=payload)
     assert reg.status_code == 200, reg.text
+    data = reg.json()["user"]
+    assert data["username"] == payload["username"]
+    assert data["role"] == payload["role"]
 
     # login remember=False
     r1 = client.post("/auth/login", json={"email": email, "password": "p@ss", "remember": False})
@@ -108,6 +127,8 @@ def test_login_success_and_cookie_flags(client, db_session):
     assert ck1 is not None
     # Em geral, quando remember=False, pode não haver Max-Age/Expires; mas deve ser HttpOnly:
     assert "httponly" in ck1.output().lower()
+    login_data1 = r1.json()["user"]
+    assert login_data1["role"] == payload["role"]
 
     # login remember=True
     r2 = client.post("/auth/login", json={"email": email, "password": "p@ss", "remember": True})
@@ -116,6 +137,8 @@ def test_login_success_and_cookie_flags(client, db_session):
     assert ck2 is not None
     # Quando remember=True, normalmente define Max-Age/Expires:
     assert ("max-age" in ck2.output().lower()) or ("expires=" in ck2.output().lower())
+    login_data2 = r2.json()["user"]
+    assert login_data2["role"] == payload["role"]
 
 
 def test_login_fails_with_wrong_password(client, db_session):
@@ -123,9 +146,15 @@ def test_login_fails_with_wrong_password(client, db_session):
     wipe_user(db_session, email)
 
     client.post("/auth/register", json={
-        "email": email, "password": "right", "name": "U",
-        "name_for_certificate": "U", "sex": "NotSpecified",
+        "email": email,
+        "password": "right",
+        "name": "U",
+        "name_for_certificate": "U",
+        "sex": "NotSpecified",
         "birthday": "2000-01-01",
+        "username": "wrongpassuser",
+        "social_name": "Wrong Pass User",
+        "role": "User"
     })
 
     r = client.post("/auth/login", json={"email": email, "password": "WRONG", "remember": False})
@@ -154,11 +183,81 @@ def test_password_is_hashed_in_db(client, db_session):
     wipe_user(db_session, email)
 
     client.post("/auth/register", json={
-        "email": email, "password": "plain123", "name": "U",
-        "name_for_certificate": "U", "sex": "NotSpecified",
+        "email": email,
+        "password": "plain123",
+        "name": "U",
+        "name_for_certificate": "U",
+        "sex": "NotSpecified",
         "birthday": "2000-01-01",
+        "username": "hashuser",
+        "social_name": "Hash User",
+        "role": "User"
     })
 
     user = db_session.execute(select(User).where(User.email == email)).scalar_one()
     assert user.password_hash != "plain123"
     assert isinstance(user.password_hash, str) and len(user.password_hash) > 20
+
+# ---------- extra robustness tests ----------
+def test_register_fails_with_missing_fields(client):
+    payload = {
+        "email": unique_email("missing"),
+        "password": "x"
+        # missing name, name_for_certificate, sex, birthday, username, role
+    }
+    r = client.post("/auth/register", json=payload)
+    assert r.status_code == 422
+
+
+def test_register_fails_with_invalid_role(client):
+    payload = {
+        "email": unique_email("badrole"),
+        "password": "x",
+        "name": "Bad Role",
+        "name_for_certificate": "Bad Role",
+        "sex": "M",
+        "birthday": "1990-01-01",
+        "username": "badroleuser",
+        "role": "NotARole"
+    }
+    r = client.post("/auth/register", json=payload)
+    assert r.status_code == 422
+
+
+def test_register_fails_with_invalid_sex(client):
+    payload = {
+        "email": unique_email("badsex"),
+        "password": "x",
+        "name": "Bad Sex",
+        "name_for_certificate": "Bad Sex",
+        "sex": "X",
+        "birthday": "1990-01-01",
+        "username": "badsexuser",
+        "role": "User"
+    }
+    r = client.post("/auth/register", json=payload)
+    assert r.status_code == 422
+
+
+def test_register_conflict_on_duplicate_username(client, db_session):
+    email1 = unique_email("dupuser1")
+    email2 = unique_email("dupuser2")
+    wipe_user(db_session, email1)
+    wipe_user(db_session, email2)
+    payload1 = {
+        "email": email1,
+        "password": "x",
+        "name": "A",
+        "name_for_certificate": "A",
+        "sex": "NotSpecified",
+        "birthday": "2000-01-01",
+        "username": "uniqueuser",
+        "social_name": "Dup User",
+        "role": "User"
+    }
+    payload2 = dict(payload1)
+    payload2["email"] = email2
+    r1 = client.post("/auth/register", json=payload1)
+    assert r1.status_code == 200, r1.text
+    r2 = client.post("/auth/register", json=payload2)
+    assert r2.status_code == 409, r2.text

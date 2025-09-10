@@ -19,22 +19,29 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
     if exists:
         raise HTTPException(status_code=409, detail="Email já cadastrado")
 
+    exists_username = db.query(User).filter(User.username == payload.username).first()
+    if exists_username:
+        raise HTTPException(status_code=409, detail="Username já cadastrado")
+
     user = User(
         email=payload.email,
         name=payload.name,
         password_hash=hash_password(payload.password),
         name_for_certificate=payload.name_for_certificate,
+        username=payload.username,
+        social_name=payload.social_name,
         sex=payload.sex,
-        birthday=payload.birthday
+        birthday=payload.birthday,
+        role=RolesEnum.User.value
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    token = sign_session({"id": user.user_id, "email": user.email, "role": RolesEnum.User.value})
+    token = sign_session({"id": user.user_id, "email": user.email, "role": user.role, "username": user.username})
     set_session_cookie(res, token, remember=True)
 
-    return {"user": UserOut(id=user.user_id, email=user.email, name=user.name)}
+    return {"user": UserOut(id=user.user_id, email=user.email, name=user.name, username=user.username, social_name=user.social_name, role=user.role)} 
 
 @router.post("/login", response_model=dict)
 def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
@@ -43,10 +50,10 @@ def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
-    token = sign_session({"id": user.user_id, "email": user.email})
+    token = sign_session({"id": user.user_id, "email": user.email, "role": user.role})
     set_session_cookie(res, token, remember=payload.remember)
 
-    return {"user": UserOut(id=user.user_id, email=user.email, name=user.name)}
+    return {"user": UserOut(id=user.user_id, email=user.email, name=user.name, username=user.username, social_name=user.social_name, role=user.role)}
 
 @router.post("/logout", response_model=dict)
 def logout(res: Response):
