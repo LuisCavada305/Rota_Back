@@ -6,6 +6,6 @@ repos:
         entry: pytest -q
         language: python
         additional_dependencies: 
-          - -r requirements.txt
+          - -rrequirements.txt
         stages: [push]
         types: [python]
