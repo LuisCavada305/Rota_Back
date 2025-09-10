@@ -5,6 +5,7 @@ repos:
         name: Run pytest on push
         entry: pytest -q
         language: python
-        additional_dependencies: [pytest, sqlalchemy, httpx, pytest-asyncio, pytest-cov, pydantic]
+        additional_dependencies: 
+          - -r requirements.txt
         stages: [push]
         types: [python]
