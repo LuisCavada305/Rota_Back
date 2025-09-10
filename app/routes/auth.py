@@ -45,8 +45,11 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=dict)
 def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
+    
     repo = UsersRepository(db)
+
     user: User | None = repo.GetUserByEmail(payload.email)
+
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
