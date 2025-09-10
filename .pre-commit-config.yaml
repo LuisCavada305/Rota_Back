@@ -4,8 +4,6 @@ repos:
       - id: pytest-on-push
         name: Run pytest on push
         entry: pytest -q
-        language: python
-        additional_dependencies: 
-          - -rrequirements.txt
+        language: system
         stages: [push]
         types: [python]
