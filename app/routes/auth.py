@@ -7,13 +7,15 @@ from app.services.security import hash_password, verify_password, sign_session, 
 import uuid
 from sqlalchemy import func
 from app.models.roles import RolesEnum
+from app.repositories.UsersRepository import UsersRepository
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=dict)
 def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
+    repo = UsersRepository(db)
     # email único
-    exists = db.query(User).filter(User.email == payload.email).first()
+    exists = repo.GetUserByEmail(payload.email)
     if exists:
         raise HTTPException(status_code=409, detail="Email já cadastrado")
 
@@ -36,7 +38,8 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=dict)
 def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
-    user: User | None = db.query(User).filter(User.email == payload.email).first()
+    repo = UsersRepository(db)
+    user: User | None = repo.GetUserByEmail(payload.email)
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
 

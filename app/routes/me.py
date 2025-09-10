@@ -12,7 +12,7 @@ def get_current_user_id(request: Request) -> str:
     if not token:
         raise HTTPException(status_code=401, detail="Não autenticado")
     try:
-        decoded = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+        decoded = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"], options={"require": ["exp"]})
         return decoded["id"]
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Sessão inválida")

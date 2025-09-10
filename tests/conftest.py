@@ -13,7 +13,7 @@ def engine():
     try:
         yield eng
     finally:
-        eng.dispose()  # <- importantíssimo
+        eng.dispose()  
 
 @pytest.fixture(scope="function")
 def db_connection(engine):
