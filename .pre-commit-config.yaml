@@ -7,6 +7,6 @@ repos:
       - id: pytest-on-pre-push
         name: Run pytest before push
         language: system          # usa seu venv atual
-        entry: bash -lc 'pytest -q'
+        entry: bash -lc '$PYTHONPATH="$PWD" pytest -q'
         pass_filenames: false     # não passar arquivos como args ao pytest
         stages: [pre-push]
