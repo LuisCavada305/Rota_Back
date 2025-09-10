@@ -2,11 +2,11 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from passlib.hash import bcrypt
 from fastapi import Response
-from core.settings import settings
+from app.core.settings import settings
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from models.users import User
-from core.db import get_db
+from app.models.users import User
+from app.core.db import get_db
 
 JWT_ALG = "HS256"
 
@@ -26,13 +26,13 @@ def sign_session(payload: dict, expires_in: timedelta = timedelta(days=1)) -> st
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=JWT_ALG)
 
 def set_session_cookie(res: Response, token: str, remember: bool):
-    # remember -> 30 dias; caso contrário, cookie de sessão
-    max_age = 30 * 24 * 60 * 60 if remember else None
+    # remember -> 1 dia; caso contrário, cookie de sessão
+    max_age = 1 * 24 * 60 * 60 if remember else None
     res.set_cookie(
         key=settings.COOKIE_NAME,
         value=token,
         httponly=True,
-        samesite="true",                     # se front/back estiverem em domínios diferentes
+        samesite="none",                     # se front/back estiverem em domínios diferentes
         secure=(settings.ENV != "dev"),      # True em produção (HTTPS)
         path="/",
         max_age=max_age
@@ -42,7 +42,7 @@ def clear_session_cookie(res: Response):
     res.delete_cookie(
         key=settings.COOKIE_NAME,
         httponly=True,
-        samesite="true",
+        samesite="none",
         secure=(settings.ENV != "dev"),
         path="/",
     )

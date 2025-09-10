@@ -1,7 +1,7 @@
 from sqlalchemy import Enum, Integer, String, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
-from .base import Base
-from enum import Enum 
+from app.models.base import Base
+from enum import Enum
 
 class Roles(Base):
     __tablename__ = "roles"

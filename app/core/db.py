@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from .settings import settings
+from app.core.settings import settings
 
 engine = create_engine(settings.url, pool_pre_ping=True, future=True)
 
