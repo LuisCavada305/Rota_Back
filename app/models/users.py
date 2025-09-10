@@ -48,7 +48,6 @@ class User(Base):
 
     user_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     email:   Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
-    name:    Mapped[str] = mapped_column(String, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -81,7 +80,6 @@ from pydantic import BaseModel, EmailStr, field_validator
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str
-    name: str
     name_for_certificate: str
     sex: Sex
     birthday: str  
@@ -109,6 +107,5 @@ class LoginIn(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
-    name: Optional[str] = None
     username: str
     role: RolesEnum = RolesEnum.User

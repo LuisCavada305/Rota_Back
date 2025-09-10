@@ -33,7 +33,6 @@ def test_register_success(client, db_session):
     payload = {
         "email": email,
         "password": "testpass",
-        "name": "Test User",
         "name_for_certificate": "Test User",
         "sex": "NotSpecified",   # também testaremos "N" em outro caso
         "birthday": "2000-01-01",
@@ -59,7 +58,6 @@ def test_register_conflict_on_duplicate_email(client, db_session):
     payload = {
         "email": email,
         "password": "x",
-        "name": "A",
         "name_for_certificate": "A",
         "sex": "NotSpecified",
         "birthday": "2000-01-01",
@@ -82,7 +80,6 @@ def test_register_accepts_short_sex_letter(client, db_session):
     payload = {
         "email": email,
         "password": "pass123",
-        "name": "Enum Short",
         "name_for_certificate": "Enum Short",
         "sex": "N",  # <- letra curta
         "birthday": "2000-01-01",
@@ -106,7 +103,6 @@ def test_login_success_and_cookie_flags(client, db_session):
     payload = {
         "email": email,
         "password": "p@ss",
-        "name": "U",
         "name_for_certificate": "U",
         "sex": "NotSpecified",
         "birthday": "2000-01-01",
@@ -148,7 +144,6 @@ def test_login_fails_with_wrong_password(client, db_session):
     client.post("/auth/register", json={
         "email": email,
         "password": "right",
-        "name": "U",
         "name_for_certificate": "U",
         "sex": "NotSpecified",
         "birthday": "2000-01-01",
@@ -185,7 +180,6 @@ def test_password_is_hashed_in_db(client, db_session):
     client.post("/auth/register", json={
         "email": email,
         "password": "plain123",
-        "name": "U",
         "name_for_certificate": "U",
         "sex": "NotSpecified",
         "birthday": "2000-01-01",
@@ -213,7 +207,6 @@ def test_register_fails_with_invalid_role(client):
     payload = {
         "email": unique_email("badrole"),
         "password": "x",
-        "name": "Bad Role",
         "name_for_certificate": "Bad Role",
         "sex": "M",
         "birthday": "1990-01-01",
@@ -228,7 +221,6 @@ def test_register_fails_with_invalid_sex(client):
     payload = {
         "email": unique_email("badsex"),
         "password": "x",
-        "name": "Bad Sex",
         "name_for_certificate": "Bad Sex",
         "sex": "X",
         "birthday": "1990-01-01",
@@ -247,7 +239,6 @@ def test_register_conflict_on_duplicate_username(client, db_session):
     payload1 = {
         "email": email1,
         "password": "x",
-        "name": "A",
         "name_for_certificate": "A",
         "sex": "NotSpecified",
         "birthday": "2000-01-01",

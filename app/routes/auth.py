@@ -25,7 +25,6 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
 
     user = User(
         email=payload.email,
-        name=payload.name,
         password_hash=hash_password(payload.password),
         name_for_certificate=payload.name_for_certificate,
         username=payload.username,
@@ -41,11 +40,11 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
     token = sign_session({"id": user.user_id, "email": user.email, "role": user.role, "username": user.username})
     set_session_cookie(res, token, remember=True)
 
-    return {"user": UserOut(id=user.user_id, email=user.email, name=user.name, username=user.username, social_name=user.social_name, role=user.role)} 
+    return {"user": UserOut(id=user.user_id, email=user.email, username=user.username, social_name=user.social_name, role=user.role)} 
 
 @router.post("/login", response_model=dict)
 def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
-    
+
     repo = UsersRepository(db)
 
     user: User | None = repo.GetUserByEmail(payload.email)
@@ -56,7 +55,7 @@ def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
     token = sign_session({"id": user.user_id, "email": user.email, "role": user.role})
     set_session_cookie(res, token, remember=payload.remember)
 
-    return {"user": UserOut(id=user.user_id, email=user.email, name=user.name, username=user.username, social_name=user.social_name, role=user.role)}
+    return {"user": UserOut(id=user.user_id, email=user.email, username=user.username, social_name=user.social_name, role=user.role)}
 
 @router.post("/logout", response_model=dict)
 def logout(res: Response):
