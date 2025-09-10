@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pytest-on-push
+        name: Run pytest on push
+        entry: pytest -q
+        language: python
+        additional_dependencies: [pytest, sqlalchemy, httpx, pytest-asyncio, pytest-cov, pydantic]
+        stages: [push]
+        types: [python]
