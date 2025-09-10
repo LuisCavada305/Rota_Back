@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     COOKIE_NAME: str = Field(default="rota_session", env="COOKIE_NAME")
     ENV: str = Field(default="dev", env="ENV")
     
-    # Pydantic v2: configurações via model_config
     model_config = SettingsConfigDict(
         env_file=".env",              # troque para ".env.docker" se rodar no compose
         env_file_encoding="utf-8",
