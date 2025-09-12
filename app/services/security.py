@@ -10,11 +10,14 @@ from app.core.db import get_db
 
 JWT_ALG = "HS256"
 
+
 def hash_password(password: str) -> str:
     return bcrypt.hash(password)
 
+
 def verify_password(password: str, password_hash: str | bytes) -> bool:
     return bcrypt.verify(password, password_hash)
+
 
 def sign_session(payload: dict, expires_in: timedelta = timedelta(days=1)) -> str:
     now = datetime.now(timezone.utc)
@@ -25,6 +28,7 @@ def sign_session(payload: dict, expires_in: timedelta = timedelta(days=1)) -> st
     }
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=JWT_ALG)
 
+
 def set_session_cookie(res: Response, token: str, remember: bool):
     # remember -> 1 dia; caso contrário, cookie de sessão
     max_age = 1 * 24 * 60 * 60 if remember else None
@@ -32,11 +36,12 @@ def set_session_cookie(res: Response, token: str, remember: bool):
         key=settings.COOKIE_NAME,
         value=token,
         httponly=True,
-        samesite="none",                     # se front/back estiverem em domínios diferentes
-        secure=True,      # True em produção (HTTPS)
+        samesite="none",  # se front/back estiverem em domínios diferentes
+        secure=True,  # True em produção (HTTPS)
         path="/",
-        max_age=max_age
+        max_age=max_age,
     )
+
 
 def clear_session_cookie(res: Response):
     res.delete_cookie(
@@ -51,15 +56,22 @@ def clear_session_cookie(res: Response):
 UNAUTH = HTTPException(status_code=401, detail="Não autenticado")
 FORBID = HTTPException(status_code=403, detail="Sem permissão")
 
+
 def get_current_user_id(request: Request) -> str:
     token = request.cookies.get(settings.COOKIE_NAME)
     if not token:
         raise UNAUTH
     try:
-        decoded = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"], options={"require": ["exp"]})
+        decoded = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=["HS256"],
+            options={"require": ["exp"]},
+        )
         return decoded["id"]
     except jwt.PyJWTError:
         raise UNAUTH
+
 
 def get_current_user(
     user_id: str = Depends(get_current_user_id),
