@@ -33,7 +33,7 @@ def set_session_cookie(res: Response, token: str, remember: bool):
         value=token,
         httponly=True,
         samesite="none",                     # se front/back estiverem em domínios diferentes
-        secure=(settings.ENV != "dev"),      # True em produção (HTTPS)
+        secure=True,      # True em produção (HTTPS)
         path="/",
         max_age=max_age
     )
