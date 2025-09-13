@@ -34,7 +34,7 @@ def test_register_success(client, db_session):
         "email": email,
         "password": "testpass",
         "name_for_certificate": "Test User",
-        "sex": "NotSpecified",   # também testaremos "N" em outro caso
+        "sex": "NotSpecified",   
         "birthday": "2000-01-01",
             "username": "testuser",
             "social_name": "Test User",
@@ -45,7 +45,7 @@ def test_register_success(client, db_session):
     assert r.status_code == 200, r.text
     data = r.json()["user"]
     assert data["email"] == email
-    assert isinstance(data["id"], int)
+    assert isinstance(data["user_id"], int)
     # não deve vazar hash na resposta
     assert "password_hash" not in r.text
     assert data["role"] == payload["role"]

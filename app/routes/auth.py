@@ -3,13 +3,20 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.models.users import User
 from app.models.users import RegisterIn, LoginIn, UserOut
-from app.services.security import hash_password, verify_password, sign_session, set_session_cookie, clear_session_cookie
+from app.services.security import (
+    hash_password,
+    verify_password,
+    sign_session,
+    set_session_cookie,
+    clear_session_cookie,
+)
 import uuid
 from sqlalchemy import func
 from app.models.roles import RolesEnum
 from app.repositories.UsersRepository import UsersRepository
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
 
 @router.post("/register", response_model=dict)
 def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
@@ -31,16 +38,24 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
         social_name=payload.social_name,
         sex=payload.sex,
         birthday=payload.birthday,
-        role=RolesEnum.User.value
+        role=RolesEnum.User.value,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    token = sign_session({"id": user.user_id, "email": user.email, "role": user.role, "username": user.username})
+    token = sign_session(
+        {
+            "id": user.user_id,
+            "email": user.email,
+            "role": user.role,
+            "username": user.username,
+        }
+    )
     set_session_cookie(res, token, remember=True)
 
     return {"user": UserOut.model_validate(user.__dict__)}
+
 
 @router.post("/login", response_model=dict)
 def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
@@ -56,6 +71,7 @@ def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
     set_session_cookie(res, token, remember=payload.remember)
 
     return {"user": UserOut.model_validate(user.__dict__)}
+
 
 @router.post("/logout", response_model=dict)
 def logout(res: Response):
