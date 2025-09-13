@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from app.models.trails import Trails as TrailsORM
 
+
 class TrailsRepository:
     def __init__(self, db: Session):
         self.db = db
