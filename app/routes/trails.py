@@ -60,3 +60,21 @@ def get_trails_showcase(db: Session = Depends(get_db)):
     ]
     return {"trails": result}
 
+@router.get("/", response_model=Dict[str, List[TrailOut]])
+def get_trails(db: Session = Depends(get_db)):
+    repo = TrailsRepository(db)
+    trails = repo.list_all()
+
+    # mapear ORM → schema (ajustando snake_case → camelCase esperado)
+    result = [
+        TrailOut(
+            id=t.id,
+            name=t.name,
+            thumbnail_url=t.thumbnail_url,  
+            author=t.author,
+            rating=t.rating
+        )
+        for t in trails
+    ]
+    return {"trails": result}
+

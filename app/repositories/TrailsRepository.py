@@ -8,3 +8,6 @@ class TrailsRepository:
 
     def list_showcase(self, limit: int = 6) -> list[TrailsORM]:
         return self.db.query(TrailsORM).limit(limit).all()
+    
+    def list_all(self) -> list[TrailsORM]:
+        return self.db.query(TrailsORM).all()
