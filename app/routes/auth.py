@@ -26,7 +26,7 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
     if exists:
         raise HTTPException(status_code=409, detail="Email já cadastrado")
 
-    exists_username = db.query(User).filter(User.username == payload.username).first()
+    exists_username = repo.GetUserByUsername(payload.username)
     if exists_username:
         raise HTTPException(status_code=409, detail="Username já cadastrado")
 
@@ -39,6 +39,7 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
         sex=payload.sex,
         birthday=payload.birthday,
         role=RolesEnum.User.value,
+        created_at=func.now(),
     )
     db.add(user)
     db.commit()

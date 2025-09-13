@@ -8,3 +8,6 @@ class UsersRepository:
 
     def GetUserByEmail(self, email: str) -> Optional[User]:
         return self.db.query(User).filter(User.email == email).first()
+    
+    def GetUserByUsername(self, username: str) -> Optional[User]:
+        return self.db.query(User).filter(User.username == username).first()
