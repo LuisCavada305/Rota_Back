@@ -64,8 +64,8 @@ class User(Base):
 
     social_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # Se não for obrigatório no registro, deixe nullable=True
-    username: Mapped[Optional[str]] = mapped_column(String, unique=True, index=True, nullable=True)
+   
+    username: Mapped[Optional[str]] = mapped_column(String, unique=True, index=True, nullable=False)
 
     role: Mapped[RolesEnum] = mapped_column(
         db_enum(RolesEnum, "roles_enum", IS_PG),
@@ -73,6 +73,8 @@ class User(Base):
         server_default=RolesEnum.User.value,  # "User"
     )
 
+    profile_pic_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    banner_pic_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 # --------- Pydantic Schemas ---------
 from pydantic import BaseModel, EmailStr, field_validator
@@ -105,7 +107,9 @@ class LoginIn(BaseModel):
     remember: bool = False
 
 class UserOut(BaseModel):
-    id: int
+    user_id: int
     email: EmailStr
     username: str
+    profile_pic_url: Optional[str] = None
+    banner_pic_url: Optional[str] = None
     role: RolesEnum = RolesEnum.User

@@ -40,7 +40,7 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
     token = sign_session({"id": user.user_id, "email": user.email, "role": user.role, "username": user.username})
     set_session_cookie(res, token, remember=True)
 
-    return {"user": UserOut(id=user.user_id, email=user.email, username=user.username, social_name=user.social_name, role=user.role)} 
+    return {"user": UserOut.model_validate(user.__dict__)}
 
 @router.post("/login", response_model=dict)
 def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
@@ -55,7 +55,7 @@ def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
     token = sign_session({"id": user.user_id, "email": user.email, "role": user.role})
     set_session_cookie(res, token, remember=payload.remember)
 
-    return {"user": UserOut(id=user.user_id, email=user.email, username=user.username, social_name=user.social_name, role=user.role)}
+    return {"user": UserOut.model_validate(user.__dict__)}
 
 @router.post("/logout", response_model=dict)
 def logout(res: Response):
