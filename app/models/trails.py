@@ -1,23 +1,37 @@
-from typing import List, Optional
-from sqlalchemy import Integer, String, DateTime, func
-from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import Mapped, mapped_column
+from __future__ import annotations
+
+from typing import Optional, List, TYPE_CHECKING
+from sqlalchemy import Integer, String, Date, ForeignKey, Numeric
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 
+if TYPE_CHECKING:
+    from .trail_sections import TrailSections
+    from .trail_included_items import TrailIncludedItems
+    from .trail_requirements import TrailRequirements
+    from .trail_target_audience import TrailTargetAudience
 
 class Trails(Base):
     __tablename__ = "trails"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
     thumbnail_url: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    review: Mapped[Optional[float]] = mapped_column(Numeric(asdecimal=False), nullable=True)
+    created_date: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.user_id"), nullable=True)
     author: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    review: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    created_date: Mapped[str] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    requirements: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String))
-    target_audience: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String))
-    included_items: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String))
+
+    sections: Mapped[List["TrailSections"]] = relationship(
+        back_populates="trail", cascade="all, delete-orphan"
+    )
+    included_items: Mapped[List["TrailIncludedItems"]] = relationship(
+        back_populates="trail", cascade="all, delete-orphan"
+    )
+    requirements: Mapped[List["TrailRequirements"]] = relationship(
+        back_populates="trail", cascade="all, delete-orphan"
+    )
+    target_audience: Mapped[List["TrailTargetAudience"]] = relationship(
+        back_populates="trail", cascade="all, delete-orphan"
+    )

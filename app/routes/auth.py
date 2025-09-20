@@ -29,18 +29,17 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
         password_hash=hash_password(payload.password),
         name_for_certificate=payload.name_for_certificate,
         username=payload.username,
-        sex=payload.sex,  # Enum da API -> repo resolve para lk_sex.id
-        role=payload.role,  # Enum da API -> repo resolve para lk_role.id
+        sex=payload.sex,  
+        role=payload.role,  
         birthday=payload.birthday,
         social_name=payload.social_name,
     )
-    # NÃO precisa db.add/commit/refresh aqui; CreateUser já fez
 
     token = sign_session(
         {
             "id": user.user_id,
             "email": user.email,
-            "role": user.role.code,  # agora é o code da lookup ("User", "Admin", ...)
+            "role": user.role.code,  
             "username": user.username,
         }
     )
