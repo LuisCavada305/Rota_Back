@@ -69,3 +69,15 @@ class UserTrailsRepository:
             "nextAction": nextAction,
             "enrolledAt": enrolledAt,
         }
+
+    def ensure_enrollment(self, user_id: int, trail_id: int):
+            ut = (
+                self.db.query(UserTrailsORM)
+                .filter(UserTrailsORM.user_id == user_id, UserTrailsORM.trail_id == trail_id)
+                .first()
+            )
+            if not ut:
+                ut = UserTrailsORM(user_id=user_id, trail_id=trail_id, started_at=func.now())
+                self.db.add(ut)
+                self.db.commit()
+            return ut
