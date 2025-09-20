@@ -81,4 +81,3 @@ def get_current_user(
     if not user:
         raise UNAUTH
     return user
-

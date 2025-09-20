@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
 
+
 class Trails(Base):
     __tablename__ = "trails"
 

@@ -17,9 +17,7 @@ class UsersRepository:
 
     # ---------- Helpers de lookup (code -> id) ----------
     def _sex_id(self, sex: Sex) -> int:
-        sid = self.db.scalars(
-            select(LkSex.id).where(LkSex.code == sex.value)
-        ).first()
+        sid = self.db.scalars(select(LkSex.id).where(LkSex.code == sex.value)).first()
         if sid is None:
             raise ValueError(f"lk_sex não possui code '{sex.value}'")
         return sid
@@ -61,10 +59,15 @@ class UsersRepository:
         )
 
     def ExistsEmail(self, email: str) -> bool:
-        return self.db.query(User.user_id).filter(User.email == email).first() is not None
+        return (
+            self.db.query(User.user_id).filter(User.email == email).first() is not None
+        )
 
     def ExistsUsername(self, username: str) -> bool:
-        return self.db.query(User.user_id).filter(User.username == username).first() is not None
+        return (
+            self.db.query(User.user_id).filter(User.username == username).first()
+            is not None
+        )
 
     # ---------- Criação / Atualização ----------
     def CreateUser(
@@ -88,8 +91,8 @@ class UsersRepository:
             name_for_certificate=name_for_certificate,
             username=username,
             social_name=social_name,
-            sex_id=sex_id,          # << usa IDs
-            role_id=role_id,        # << usa IDs
+            sex_id=sex_id,  # << usa IDs
+            role_id=role_id,  # << usa IDs
             birthday=birthday,
             profile_pic_url=profile_pic_url,
             banner_pic_url=banner_pic_url,

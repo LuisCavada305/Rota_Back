@@ -23,10 +23,10 @@ def get_current_user_id(request: Request) -> str:
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Sessão inválida")
 
+
 @router.get("/me", response_model=dict)
 def me(user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     return {"user": UserOut.from_orm_user(user)}
-

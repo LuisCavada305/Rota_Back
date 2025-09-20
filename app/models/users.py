@@ -23,7 +23,9 @@ class Sex(str, Enum):
     Other = "O"
     NotSpecified = "N"
 
+
 from app.core.settings import settings
+
 
 class User(Base):
     __tablename__ = "users"
@@ -33,7 +35,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
 
     # idealmente passe a usar created_at_utc (TIMESTAMP sem TZ); se mantiver created_at, OK também.
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     # se quiser mapear created_at_utc também:
     # created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
 
@@ -51,7 +55,9 @@ class User(Base):
     social_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # seu modelo estava Optional mas nullable=False; alinhei para NOT NULL
-    username: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(
+        String, unique=True, index=True, nullable=False
+    )
 
     profile_pic_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     banner_pic_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -65,12 +71,14 @@ class User(Base):
     def role_code(self) -> str:
         return self.role.code if self.role else "User"
 
+
 # --------- Pydantic Schemas ---------
 from pydantic import BaseModel, EmailStr, field_validator
 
 
 # app/models/users.py (mesmo arquivo, parte Pydantic)
 from pydantic import BaseModel, EmailStr, field_validator
+
 
 class RegisterIn(BaseModel):
     email: EmailStr
@@ -88,16 +96,24 @@ class RegisterIn(BaseModel):
     def map_letters_to_enum(cls, v):
         if isinstance(v, str):
             mapping = {
-                "M": Sex.Male, "F": Sex.Female, "O": Sex.Other, "N": Sex.NotSpecified,
-                "Male": Sex.Male, "Female": Sex.Female, "Other": Sex.Other, "NotSpecified": Sex.NotSpecified,
+                "M": Sex.Male,
+                "F": Sex.Female,
+                "O": Sex.Other,
+                "N": Sex.NotSpecified,
+                "Male": Sex.Male,
+                "Female": Sex.Female,
+                "Other": Sex.Other,
+                "NotSpecified": Sex.NotSpecified,
             }
             return mapping.get(v, v)
         return v
+
 
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
     remember: bool = False
+
 
 class UserOut(BaseModel):
     user_id: int
@@ -116,8 +132,8 @@ class UserOut(BaseModel):
             username=u.username,
             profile_pic_url=u.profile_pic_url,
             banner_pic_url=u.banner_pic_url,
-            role=RolesEnum(u.role_code),     # <-- da lookup
-            sex=Sex(u.sex_code),             # <-- da lookup
+            role=RolesEnum(u.role_code),  # <-- da lookup
+            sex=Sex(u.sex_code),  # <-- da lookup
         )
 
 
@@ -144,6 +160,6 @@ class UserOut(BaseModel):
             username=u.username,
             profile_pic_url=u.profile_pic_url,
             banner_pic_url=u.banner_pic_url,
-            role=RolesEnum(u.role_code),     # <-- da lookup
-            sex=Sex(u.sex_code),             # <-- da lookup
+            role=RolesEnum(u.role_code),  # <-- da lookup
+            sex=Sex(u.sex_code),  # <-- da lookup
         )
