@@ -11,15 +11,20 @@ if TYPE_CHECKING:
     from .trail_requirements import TrailRequirements
     from .trail_target_audience import TrailTargetAudience
 
+
 class Trails(Base):
     __tablename__ = "trails"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     thumbnail_url: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    review: Mapped[Optional[float]] = mapped_column(Numeric(asdecimal=False), nullable=True)
+    review: Mapped[Optional[float]] = mapped_column(
+        Numeric(asdecimal=False), nullable=True
+    )
     created_date: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
-    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.user_id"), nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.user_id"), nullable=True
+    )
     author: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 

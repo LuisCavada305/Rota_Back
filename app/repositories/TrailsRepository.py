@@ -6,7 +6,9 @@ from app.models.trail_sections import TrailSections as TrailSectionsORM
 from app.models.trail_items import TrailItems as TrailItemsORM
 from app.models.trail_included_items import TrailIncludedItems as TrailIncludedItemsORM
 from app.models.trail_requirements import TrailRequirements as TrailRequirementsORM
-from app.models.trail_target_audience import TrailTargetAudience as TrailTargetAudienceORM
+from app.models.trail_target_audience import (
+    TrailTargetAudience as TrailTargetAudienceORM,
+)
 from app.models.lk_item_type import LkItemType as LkItemTypeORM
 
 
@@ -26,11 +28,7 @@ class TrailsRepository:
         return self.db.query(TrailsORM).order_by(TrailsORM.name).all()
 
     def get_trail(self, trail_id: int) -> TrailsORM | None:
-        return (
-            self.db.query(TrailsORM)
-            .filter(TrailsORM.id == trail_id)
-            .first()
-        )
+        return self.db.query(TrailsORM).filter(TrailsORM.id == trail_id).first()
 
     def list_sections(self, trail_id: int) -> List[TrailSectionsORM]:
         return (

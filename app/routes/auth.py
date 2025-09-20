@@ -29,8 +29,8 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
         password_hash=hash_password(payload.password),
         name_for_certificate=payload.name_for_certificate,
         username=payload.username,
-        sex=payload.sex,  
-        role=payload.role,  
+        sex=payload.sex,
+        role=payload.role,
         birthday=payload.birthday,
         social_name=payload.social_name,
     )
@@ -39,7 +39,7 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
         {
             "id": user.user_id,
             "email": user.email,
-            "role": user.role.code,  
+            "role": user.role.code,
             "username": user.username,
         }
     )

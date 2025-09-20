@@ -9,11 +9,14 @@ if TYPE_CHECKING:
     from .trails import Trails  # só para lint/type-check, não roda em runtime
     from .trail_items import TrailItems
 
+
 class TrailSections(Base):
     __tablename__ = "trail_sections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    trail_id: Mapped[int] = mapped_column(ForeignKey("trails.id", ondelete="CASCADE"), nullable=False)
+    trail_id: Mapped[int] = mapped_column(
+        ForeignKey("trails.id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String, nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
