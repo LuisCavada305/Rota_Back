@@ -6,6 +6,7 @@ from app.models.lk_progress_status import LkProgressStatus as LkProgressStatusOR
 
 from app.models.lk_progress_status import LkProgressStatus
 
+
 class UserProgressRepository:
     def __init__(self, db: Session):
         self.db = db
@@ -17,7 +18,13 @@ class UserProgressRepository:
             .scalar()
         )
 
-    def upsert_item_progress(self, user_id: int, item_id: int, status_code: str, progress_value: int | None = None):
+    def upsert_item_progress(
+        self,
+        user_id: int,
+        item_id: int,
+        status_code: str,
+        progress_value: int | None = None,
+    ):
         status_id = self._status_id(status_code)
         uip = (
             self.db.query(UserItemProgressORM)

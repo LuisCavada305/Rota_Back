@@ -170,21 +170,28 @@ def get_audience(trail_id: int, db: Session = Depends(get_db)):
 def get_learn(trail_id: int):
     return []
 
+
 # PUT /trails/{trail_id}/items/{item_id}/progress
 class ItemProgressIn(BaseModel):
     status: Literal["IN_PROGRESS", "COMPLETED"]
     progress_value: int | None = None  # % ou segundos, escolha um padrão
 
+
 @router.put("/trails/{trail_id}/items/{item_id}/progress")
-def set_item_progress(trail_id: int, item_id: int, body: ItemProgressIn,
-                      user: User = Depends(get_current_user),
-                      db: Session = Depends(get_db)):
+def set_item_progress(
+    trail_id: int,
+    item_id: int,
+    body: ItemProgressIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     # valida item ↔ trilha
     item = db.query(TrailItemsORM).filter_by(id=item_id, trail_id=trail_id).first()
     if not item:
-      raise HTTPException(404, "Item não encontrado na trilha")
+        raise HTTPException(404, "Item não encontrado na trilha")
 
     UserTrailsRepository(db).ensure_enrollment(user.id, trail_id)
-    UserProgressRepository(db).upsert_item_progress(user.id, item_id, body.status, body.progress_value)
+    UserProgressRepository(db).upsert_item_progress(
+        user.id, item_id, body.status, body.progress_value
+    )
     return {"ok": True}
-
