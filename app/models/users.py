@@ -11,6 +11,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
 from app.models.roles import RolesEnum  # RolesEnum(str, Enum): Admin/User/Manager
 
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import relationship
+from app.models.lookups import LkSex, LkRole
+
 
 # ---- Enums ----
 class Sex(str, Enum):
@@ -19,34 +23,7 @@ class Sex(str, Enum):
     Other = "O"
     NotSpecified = "N"
 
-
-# Helper para ENUM compatível (Postgres/SQLite)
-def db_enum(enum_cls, name: str, is_postgres: bool):
-    if is_postgres:
-        return PGEnum(
-            enum_cls,
-            name=name,
-            values_callable=lambda E: [e.value for e in E],
-            native_enum=True,
-            validate_strings=True,
-            create_type=False,  # deixe a migração criar
-        )
-    else:
-        # SQLite: usa SAEnum sem tipo nativo
-        return SAEnum(
-            enum_cls,
-            name=name,
-            values_callable=lambda E: [e.value for e in E],
-            native_enum=False,
-            validate_strings=True,
-        )
-
-
-# Detecta se a URL é Postgres (ajuste conforme sua app)
 from app.core.settings import settings
-
-IS_PG = settings.database_url.startswith("postgres")
-
 
 class User(Base):
     __tablename__ = "users"
@@ -55,39 +32,45 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    # idealmente passe a usar created_at_utc (TIMESTAMP sem TZ); se mantiver created_at, OK também.
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # se quiser mapear created_at_utc também:
+    # created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
 
     name_for_certificate: Mapped[str] = mapped_column(String, nullable=False)
 
-    sex: Mapped[Sex] = mapped_column(
-        db_enum(Sex, "sex_type", IS_PG),
-        nullable=False,
-        server_default=Sex.NotSpecified.value,  # "N"
-    )
+    # >>> NOVO: FKs para lookups
+    sex_id: Mapped[int] = mapped_column(ForeignKey("lk_sex.id"), nullable=False)
+    role_id: Mapped[int] = mapped_column(ForeignKey("lk_role.id"), nullable=False)
+
+    # relações para fácil acesso ao code
+    sex: Mapped[LkSex] = relationship()
+    role: Mapped[LkRole] = relationship()
 
     birthday: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-
     social_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    username: Mapped[Optional[str]] = mapped_column(
-        String, unique=True, index=True, nullable=False
-    )
-
-    role: Mapped[RolesEnum] = mapped_column(
-        db_enum(RolesEnum, "roles_enum", IS_PG),
-        nullable=False,
-        server_default=RolesEnum.User.value,  # "User"
-    )
+    # seu modelo estava Optional mas nullable=False; alinhei para NOT NULL
+    username: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
 
     profile_pic_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     banner_pic_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
+    # helpers para expor os códigos como antes (M/F/O/N e Admin/User/Manager)
+    @property
+    def sex_code(self) -> str:
+        return self.sex.code if self.sex else "N"
+
+    @property
+    def role_code(self) -> str:
+        return self.role.code if self.role else "User"
 
 # --------- Pydantic Schemas ---------
 from pydantic import BaseModel, EmailStr, field_validator
 
+
+# app/models/users.py (mesmo arquivo, parte Pydantic)
+from pydantic import BaseModel, EmailStr, field_validator
 
 class RegisterIn(BaseModel):
     email: EmailStr
@@ -98,24 +81,44 @@ class RegisterIn(BaseModel):
     role: RolesEnum = RolesEnum.User
     username: str
     social_name: Optional[str] = None
+    remember: bool = False
 
     @field_validator("sex", mode="before")
     @classmethod
     def map_letters_to_enum(cls, v):
         if isinstance(v, str):
             mapping = {
-                "M": Sex.Male,
-                "F": Sex.Female,
-                "O": Sex.Other,
-                "N": Sex.NotSpecified,
-                "Male": Sex.Male,
-                "Female": Sex.Female,
-                "Other": Sex.Other,
-                "NotSpecified": Sex.NotSpecified,
+                "M": Sex.Male, "F": Sex.Female, "O": Sex.Other, "N": Sex.NotSpecified,
+                "Male": Sex.Male, "Female": Sex.Female, "Other": Sex.Other, "NotSpecified": Sex.NotSpecified,
             }
-            if v in mapping:
-                return mapping[v]
+            return mapping.get(v, v)
         return v
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+    remember: bool = False
+
+class UserOut(BaseModel):
+    user_id: int
+    email: EmailStr
+    username: str
+    profile_pic_url: Optional[str] = None
+    banner_pic_url: Optional[str] = None
+    role: RolesEnum
+    sex: Sex
+
+    @classmethod
+    def from_orm_user(cls, u: "User") -> "UserOut":
+        return cls(
+            user_id=u.user_id,
+            email=u.email,
+            username=u.username,
+            profile_pic_url=u.profile_pic_url,
+            banner_pic_url=u.banner_pic_url,
+            role=RolesEnum(u.role_code),     # <-- da lookup
+            sex=Sex(u.sex_code),             # <-- da lookup
+        )
 
 
 class LoginIn(BaseModel):
@@ -130,4 +133,17 @@ class UserOut(BaseModel):
     username: str
     profile_pic_url: Optional[str] = None
     banner_pic_url: Optional[str] = None
-    role: RolesEnum = RolesEnum.User
+    role: RolesEnum
+    sex: Sex
+
+    @classmethod
+    def from_orm_user(cls, u: "User") -> "UserOut":
+        return cls(
+            user_id=u.user_id,
+            email=u.email,
+            username=u.username,
+            profile_pic_url=u.profile_pic_url,
+            banner_pic_url=u.banner_pic_url,
+            role=RolesEnum(u.role_code),     # <-- da lookup
+            sex=Sex(u.sex_code),             # <-- da lookup
+        )

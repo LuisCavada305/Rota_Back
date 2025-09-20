@@ -35,9 +35,10 @@ router = APIRouter(tags=["trails"])
 class TrailOut(BaseModel):
     id: int
     name: str
-    pictureUrl: str
+    thumbnail_url: str
     author: str | None = None
-    rating: int | None = None
+    review: int | None = None
+    description: str | None = None
 
     class Config:
         from_attributes = True  # permite .from_orm / mapear atributos
@@ -54,7 +55,8 @@ def get_trails_showcase(db: Session = Depends(get_db)):
             name=t.name,
             thumbnail_url=t.thumbnail_url,  # <- campo do ORM é thumbnail_url
             author=t.author,
-            rating=t.rating
+            review=t.review,
+            description=t.description
         )
         for t in trails
     ]
@@ -72,7 +74,8 @@ def get_trails(db: Session = Depends(get_db)):
             name=t.name,
             thumbnail_url=t.thumbnail_url,  
             author=t.author,
-            rating=t.rating
+            review=t.review,
+            description=t.description
         )
         for t in trails
     ]
