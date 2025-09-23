@@ -1,9 +1,11 @@
 # app/repositories/UsersRepository.py
 from __future__ import annotations
+
+from datetime import date
 from typing import Optional, Tuple
 
-from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.users import User
 from app.models.lookups import LkRole, LkSex
@@ -85,6 +87,10 @@ class UsersRepository:
         banner_pic_url: Optional[str] = None,
     ) -> User:
         sex_id, role_id = self.resolve_ids(sex, role)
+        birthday_value = birthday
+        if isinstance(birthday, str) and birthday:
+            birthday_value = date.fromisoformat(birthday)
+
         user = User(
             email=email,
             password_hash=password_hash,
@@ -93,7 +99,7 @@ class UsersRepository:
             social_name=social_name,
             sex_id=sex_id,  # << usa IDs
             role_id=role_id,  # << usa IDs
-            birthday=birthday,
+            birthday=birthday_value,
             profile_pic_url=profile_pic_url,
             banner_pic_url=banner_pic_url,
         )

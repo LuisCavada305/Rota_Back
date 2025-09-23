@@ -1,12 +1,12 @@
 import jwt
 from datetime import datetime, timedelta, timezone
 from passlib.hash import bcrypt
-from fastapi import Response
-from app.core.settings import settings
-from fastapi import Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-from app.models.users import User
+from flask import Response, request
+from werkzeug.exceptions import Unauthorized, Forbidden
+
 from app.core.db import get_db
+from app.core.settings import settings
+from app.models.users import User
 
 JWT_ALG = "HS256"
 
@@ -53,14 +53,11 @@ def clear_session_cookie(res: Response):
     )
 
 
-UNAUTH = HTTPException(status_code=401, detail="Não autenticado")
-FORBID = HTTPException(status_code=403, detail="Sem permissão")
-
-
-def get_current_user_id(request: Request) -> str:
-    token = request.cookies.get(settings.COOKIE_NAME)
+def get_current_user_id(req=None) -> str:
+    req = req or request
+    token = req.cookies.get(settings.COOKIE_NAME)
     if not token:
-        raise UNAUTH
+        raise Unauthorized(description="Não autenticado")
     try:
         decoded = jwt.decode(
             token,
@@ -70,14 +67,16 @@ def get_current_user_id(request: Request) -> str:
         )
         return decoded["id"]
     except jwt.PyJWTError:
-        raise UNAUTH
+        raise Unauthorized(description="Sessão inválida")
 
 
-def get_current_user(
-    user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
-) -> User:
+def get_current_user() -> User:
+    user_id = get_current_user_id()
+    db = get_db()
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
-        raise UNAUTH
+        raise Unauthorized(description="Não autenticado")
     return user
+
+
+FORBID = Forbidden(description="Sem permissão")

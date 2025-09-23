@@ -1,17 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-from app.core.db import get_db
-from app.models.users import User, UserOut
-from app.core.settings import settings
+from __future__ import annotations
+
 import jwt
+from flask import Blueprint, jsonify, request, abort
 
-router = APIRouter(tags=["me"])
+from app.core.db import get_db
+from app.core.settings import settings
+from app.models.users import User, UserOut
 
 
-def get_current_user_id(request: Request) -> str:
-    token = request.cookies.get(settings.COOKIE_NAME)
+bp = Blueprint("me", __name__)
+
+
+def get_current_user_id(req=None) -> str:
+    req = req or request
+    token = req.cookies.get(settings.COOKIE_NAME)
     if not token:
-        raise HTTPException(status_code=401, detail="Não autenticado")
+        abort(401, description="Não autenticado")
     try:
         decoded = jwt.decode(
             token,
@@ -21,12 +25,15 @@ def get_current_user_id(request: Request) -> str:
         )
         return decoded["id"]
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Sessão inválida")
+        abort(401, description="Sessão inválida")
 
 
-@router.get("/me", response_model=dict)
-def me(user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db)):
+@bp.get("/me")
+def me():
+    user_id = get_current_user_id()
+    db = get_db()
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    return {"user": UserOut.from_orm_user(user)}
+        abort(404, description="Usuário não encontrado")
+    user_out = UserOut.from_orm_user(user).model_dump(mode="json")
+    return jsonify({"user": user_out})
