@@ -15,6 +15,7 @@ ALLOWED_ORIGINS = [
     "https://127.0.0.1:5173",
 ]
 
+
 def create_app() -> Flask:
     app = Flask(__name__)
 
@@ -29,5 +30,6 @@ def create_app() -> Flask:
 
     app.teardown_appcontext(close_db)
     return app
+
 
 app = create_app()
