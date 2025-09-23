@@ -26,7 +26,9 @@ app.config.update({"TESTING": True})
 def engine():
     engine_options = {"pool_pre_ping": True}
     if settings.url.startswith("sqlite"):
-        engine_options.update({"connect_args": {"check_same_thread": False}, "poolclass": StaticPool})
+        engine_options.update(
+            {"connect_args": {"check_same_thread": False}, "poolclass": StaticPool}
+        )
     eng = create_engine(settings.url, **engine_options)
     Base.metadata.create_all(bind=eng)
     Base.metadata.create_all(bind=global_engine)
