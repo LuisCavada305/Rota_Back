@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import trails, user_trails
 from app.routes.auth import router as auth_router
 from app.routes.me import router as me_router
-from app.routes import trail_items  
+from app.routes import trail_items
 
 app = FastAPI(swagger_ui_parameters={"defaultModelsExpandDepth": -1})
 
