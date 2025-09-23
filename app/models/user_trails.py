@@ -9,7 +9,7 @@ from datetime import datetime
 class UserTrails(Base):
     __tablename__ = "user_trails"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.user_id", ondelete="CASCADE")
     )

@@ -6,9 +6,6 @@ from sqlalchemy import create_engine, event, insert, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-os.environ.setdefault("JWT_SECRET", "test-secret")
-os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
-
 from app.main import app
 from app.core.db import (
     engine as global_engine,

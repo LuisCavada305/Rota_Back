@@ -9,7 +9,7 @@ from datetime import datetime
 class UserItemProgress(Base):
     __tablename__ = "user_item_progress"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.user_id", ondelete="CASCADE")
     )
