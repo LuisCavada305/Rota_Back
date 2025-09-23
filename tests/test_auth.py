@@ -47,12 +47,12 @@ def test_register_success(client, db_session):
     }
 
     r = client.post("/auth/register", json=payload)
-    assert r.status_code == 200, r.text
-    data = r.json()["user"]
+    assert r.status_code == 200, r.get_data(as_text=True)
+    data = r.get_json()["user"]
     assert data["email"] == email
     assert isinstance(data["user_id"], int)
     # não deve vazar hash na resposta
-    assert "password_hash" not in r.text
+    assert "password_hash" not in r.get_data(as_text=True)
     assert data["role"] == payload["role"]
 
 
@@ -72,10 +72,10 @@ def test_register_conflict_on_duplicate_email(client, db_session):
     }
 
     r1 = client.post("/auth/register", json=payload)
-    assert r1.status_code == 200, r1.text
+    assert r1.status_code == 200, r1.get_data(as_text=True)
 
     r2 = client.post("/auth/register", json=payload)
-    assert r2.status_code == 409, r2.text
+    assert r2.status_code == 409, r2.get_data(as_text=True)
 
 
 def test_register_accepts_short_sex_letter(client, db_session):
@@ -94,8 +94,8 @@ def test_register_accepts_short_sex_letter(client, db_session):
     }
 
     r = client.post("/auth/register", json=payload)
-    assert r.status_code == 200, r.text
-    data = r.json()["user"]
+    assert r.status_code == 200, r.get_data(as_text=True)
+    data = r.get_json()["user"]
     assert data["email"] == email
     # No response data assertion needed here, only status code checked
 
@@ -118,8 +118,8 @@ def test_login_success_and_cookie_flags(client, db_session):
         "role": "User",
     }
     reg = client.post("/auth/register", json=payload)
-    assert reg.status_code == 200, reg.text
-    data = reg.json()["user"]
+    assert reg.status_code == 200, reg.get_data(as_text=True)
+    data = reg.get_json()["user"]
     assert data["username"] == payload["username"]
     assert data["role"] == payload["role"]
 
@@ -127,24 +127,24 @@ def test_login_success_and_cookie_flags(client, db_session):
     r1 = client.post(
         "/auth/login", json={"email": email, "password": "p@ss", "remember": False}
     )
-    assert r1.status_code == 200, r1.text
+    assert r1.status_code == 200, r1.get_data(as_text=True)
     ck1 = get_cookie_from_response(r1, "rota_session")
     assert ck1 is not None
     # Em geral, quando remember=False, pode não haver Max-Age/Expires; mas deve ser HttpOnly:
     assert "httponly" in ck1.output().lower()
-    login_data1 = r1.json()["user"]
+    login_data1 = r1.get_json()["user"]
     assert login_data1["role"] == payload["role"]
 
     # login remember=True
     r2 = client.post(
         "/auth/login", json={"email": email, "password": "p@ss", "remember": True}
     )
-    assert r2.status_code == 200, r2.text
+    assert r2.status_code == 200, r2.get_data(as_text=True)
     ck2 = get_cookie_from_response(r2, "rota_session")
     assert ck2 is not None
     # Quando remember=True, normalmente define Max-Age/Expires:
     assert ("max-age" in ck2.output().lower()) or ("expires=" in ck2.output().lower())
-    login_data2 = r2.json()["user"]
+    login_data2 = r2.get_json()["user"]
     assert login_data2["role"] == payload["role"]
 
 
@@ -169,7 +169,7 @@ def test_login_fails_with_wrong_password(client, db_session):
     r = client.post(
         "/auth/login", json={"email": email, "password": "WRONG", "remember": False}
     )
-    assert r.status_code == 401, r.text
+    assert r.status_code == 401, r.get_data(as_text=True)
 
 
 def test_login_fails_with_unknown_email(client):
@@ -177,7 +177,7 @@ def test_login_fails_with_unknown_email(client):
         "/auth/login",
         json={"email": unique_email("nope"), "password": "x", "remember": False},
     )
-    assert r.status_code == 401, r.text
+    assert r.status_code == 401, r.get_data(as_text=True)
 
 
 # ---------- tests: logout ----------
@@ -185,7 +185,7 @@ def test_login_fails_with_unknown_email(client):
 
 def test_logout_clears_cookie(client):
     r = client.post("/auth/logout")
-    assert r.status_code == 200, r.text
+    assert r.status_code == 200, r.get_data(as_text=True)
     ck = get_cookie_from_response(r, "rota_session")
     # clear_session_cookie deve mandar um cookie com expiração/Max-Age=0
     assert ck is not None
@@ -276,6 +276,6 @@ def test_register_conflict_on_duplicate_username(client, db_session):
     payload2 = dict(payload1)
     payload2["email"] = email2
     r1 = client.post("/auth/register", json=payload1)
-    assert r1.status_code == 200, r1.text
+    assert r1.status_code == 200, r1.get_data(as_text=True)
     r2 = client.post("/auth/register", json=payload2)
-    assert r2.status_code == 409, r2.text
+    assert r2.status_code == 409, r2.get_data(as_text=True)

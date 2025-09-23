@@ -12,19 +12,17 @@ CERT_CRT    := $(CERT_DIR)/localhost-cert.pem
 REQ_DEV     ?= requirements-dev.txt
 REQ_MAIN    ?= requirements.txt
 
-UVICORN_OPTS ?= --reload
-
 .PHONY: default run run-http test install-dev certs clean-certs
 
 default: run
 
 # ---------- Tasks ----------
 run: install-dev certs
-	uvicorn $(APP) --host $(HOST) --port $(PORT) $(UVICORN_OPTS) \
-	  --ssl-certfile "$(CERT_CRT)" --ssl-keyfile "$(CERT_KEY)"
+FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT) \
+  --cert "$(CERT_CRT)" --key "$(CERT_KEY)"
 
 run-http: install-dev
-	uvicorn $(APP) --host $(HOST) --port $(PORT) $(UVICORN_OPTS)
+FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT)
 
 test:
 	pytest -v --disable-warnings --maxfail=1
@@ -51,7 +49,7 @@ clean-certs:
 	rm -f "$(CERT_KEY)" "$(CERT_CRT)"
 
 run-server: install-prod
-	uvicorn app.main:app --host 0.0.0.0 --port $(PORT)
+flask --app $(APP) run --host 0.0.0.0 --port $(PORT)
 
 install-prod:
 	python -m pip install -r requirements.txt

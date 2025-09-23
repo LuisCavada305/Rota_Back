@@ -1,13 +1,16 @@
 # app/routes/trail_items.py
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from __future__ import annotations
+
 from typing import Optional, Literal
+
+from flask import Blueprint, jsonify, abort
+from pydantic import BaseModel
 
 from app.core.db import get_db
 from app.models.trail_items import TrailItems as TrailItemsORM
 
-router = APIRouter(prefix="/trails", tags=["trails"])
+
+bp = Blueprint("trail_items", __name__, url_prefix="/trails")
 
 
 class TrailItemDetailOut(BaseModel):
@@ -34,8 +37,9 @@ def _extract_youtube_id(url: str) -> str:
     return m.group(1) if m else ""
 
 
-@router.get("/{trail_id}/items/{item_id}", response_model=TrailItemDetailOut)
-def get_item_detail(trail_id: int, item_id: int, db: Session = Depends(get_db)):
+@bp.get("/<int:trail_id>/items/<int:item_id>")
+def get_item_detail(trail_id: int, item_id: int):
+    db = get_db()
     # 1) Carrega o item garantindo que pertence à trilha
     item = (
         db.query(TrailItemsORM)
@@ -43,7 +47,7 @@ def get_item_detail(trail_id: int, item_id: int, db: Session = Depends(get_db)):
         .first()
     )
     if not item:
-        raise HTTPException(status_code=404, detail="Item não encontrado")
+        abort(404, description="Item não encontrado")
 
     # 2) Extrai youtubeId apenas se type == VIDEO
     url = item.url or ""
@@ -111,7 +115,7 @@ def get_item_detail(trail_id: int, item_id: int, db: Session = Depends(get_db)):
         if next_row:
             next_id = next_row[0]
 
-    return TrailItemDetailOut(
+    data = TrailItemDetailOut(
         id=item.id,
         trail_id=item.trail_id,
         section_id=item.section_id,
@@ -123,4 +127,5 @@ def get_item_detail(trail_id: int, item_id: int, db: Session = Depends(get_db)):
         description_html="",  # idem
         prev_item_id=prev_id,
         next_item_id=next_id,
-    )
+    ).model_dump(mode="json")
+    return jsonify(data)

@@ -1,11 +1,13 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.routes import trails, user_trails
-from app.routes.auth import router as auth_router
-from app.routes.me import router as me_router
-from app.routes import trail_items
+from flask import Flask
+from flask_cors import CORS
 
-app = FastAPI(swagger_ui_parameters={"defaultModelsExpandDepth": -1})
+from app.core.db import close_db
+from app.routes.auth import bp as auth_bp
+from app.routes.me import bp as me_bp
+from app.routes.trail_items import bp as trail_items_bp
+from app.routes.trails import bp as trails_bp
+from app.routes.user_trails import bp as user_trails_bp
+
 
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -14,16 +16,23 @@ ALLOWED_ORIGINS = [
     "https://127.0.0.1:5173",
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-app.include_router(trail_items.router)
-app.include_router(trails.router)
-app.include_router(auth_router)
-app.include_router(me_router)
-app.include_router(user_trails.router)
+def create_app() -> Flask:
+    app = Flask(__name__)
+    CORS(
+        app,
+        origins=ALLOWED_ORIGINS,
+        supports_credentials=True,
+    )
+
+    app.register_blueprint(trail_items_bp)
+    app.register_blueprint(trails_bp)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(me_bp)
+    app.register_blueprint(user_trails_bp)
+
+    app.teardown_appcontext(close_db)
+    return app
+
+
+app = create_app()

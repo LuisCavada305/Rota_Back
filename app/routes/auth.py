@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy.orm import Session
+from __future__ import annotations
+
+from flask import Blueprint, jsonify, request, abort
+from pydantic import ValidationError
+
 from app.core.db import get_db
-from app.models.users import Sex, User, RegisterIn, LoginIn, UserOut
+from app.models.users import RegisterIn, LoginIn, UserOut, User
 from app.services.security import (
     hash_password,
     verify_password,
@@ -9,20 +12,31 @@ from app.services.security import (
     set_session_cookie,
     clear_session_cookie,
 )
-from app.models.roles import RolesEnum
 from app.repositories.UsersRepository import UsersRepository
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+
+bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
-@router.post("/register", response_model=dict)
-def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
+def _validate_payload(model_cls):
+    data = request.get_json(silent=True) or {}
+    return model_cls.model_validate(data)
+
+
+@bp.post("/register")
+def register():
+    try:
+        payload: RegisterIn = _validate_payload(RegisterIn)
+    except ValidationError as exc:
+        return jsonify({"detail": exc.errors()}), 422
+
+    db = get_db()
     repo = UsersRepository(db)
 
     if repo.ExistsEmail(payload.email):
-        raise HTTPException(status_code=409, detail="Email já cadastrado")
+        abort(409, description="Email já cadastrado")
     if repo.ExistsUsername(payload.username):
-        raise HTTPException(status_code=409, detail="Username já cadastrado")
+        abort(409, description="Username já cadastrado")
 
     user = repo.CreateUser(
         email=payload.email,
@@ -43,33 +57,44 @@ def register(payload: RegisterIn, res: Response, db: Session = Depends(get_db)):
             "username": user.username,
         }
     )
-    set_session_cookie(res, token, remember=payload.remember)
 
-    return {"user": UserOut.from_orm_user(user)}
+    user_out = UserOut.from_orm_user(user).model_dump(mode="json")
+    response = jsonify({"user": user_out})
+    set_session_cookie(response, token, remember=payload.remember)
+    return response
 
 
-@router.post("/login", response_model=dict)
-def login(payload: LoginIn, res: Response, db: Session = Depends(get_db)):
+@bp.post("/login")
+def login():
+    try:
+        payload: LoginIn = _validate_payload(LoginIn)
+    except ValidationError as exc:
+        return jsonify({"detail": exc.errors()}), 422
+
+    db = get_db()
     repo = UsersRepository(db)
     user: User | None = repo.GetUserByEmail(payload.email)
 
     if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+        abort(401, description="Credenciais inválidas")
 
     token = sign_session(
         {
             "id": user.user_id,
             "email": user.email,
-            "role": user.role.code,  # << use o code, não o objeto relação
+            "role": user.role.code,
             "username": user.username,
         }
     )
-    set_session_cookie(res, token, remember=payload.remember)
 
-    return {"user": UserOut.from_orm_user(user)}
+    user_out = UserOut.from_orm_user(user).model_dump(mode="json")
+    response = jsonify({"user": user_out})
+    set_session_cookie(response, token, remember=payload.remember)
+    return response
 
 
-@router.post("/logout", response_model=dict)
-def logout(res: Response):
-    clear_session_cookie(res)
-    return {"ok": True}
+@bp.post("/logout")
+def logout():
+    response = jsonify({"ok": True})
+    clear_session_cookie(response)
+    return response

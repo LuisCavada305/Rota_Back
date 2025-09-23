@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from __future__ import annotations
+
 from typing import Optional
-from sqlalchemy.orm import Session
+
+from flask import Blueprint, jsonify
+from pydantic import BaseModel
 
 from app.core.db import get_db
 from app.repositories.UserTrailsRepository import UserTrailsRepository
 
-router = APIRouter(prefix="/user-trails", tags=["user-trails"])
+
+bp = Blueprint("user_trails", __name__, url_prefix="/user-trails")
 
 
 class ProgressOut(BaseModel):
@@ -17,13 +20,15 @@ class ProgressOut(BaseModel):
     enrolledAt: Optional[str] = None
 
 
-@router.get("/{trail_id}/progress", response_model=ProgressOut)
-def get_progress(trail_id: int, db: Session = Depends(get_db)):
+@bp.get("/<int:trail_id>/progress")
+def get_progress(trail_id: int):
+    db = get_db()
     repo = UserTrailsRepository(db)
     data = repo.get_progress_for_current_user(trail_id)
     if not data:
         total = repo.count_items_in_trail(trail_id)
-        return ProgressOut(
+        default = ProgressOut(
             done=0, total=total, computed_progress_percent=0.0, nextAction="Começar"
         )
-    return ProgressOut(**data)
+        return jsonify(default.model_dump(mode="json"))
+    return jsonify(ProgressOut(**data).model_dump(mode="json"))
