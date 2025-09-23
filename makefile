@@ -1,9 +1,13 @@
 SHELL := /bin/bash
 
 # -------- Config ----------
-HOST        ?= 0.0.0.0
+HOST        ?= 127.0.0.1   # local dev; em prod compart., provedor decide
 PORT        ?= 8001
+# Se você tem "app/main.py" com "app = Flask(__name__)" use:
 APP         ?= app.main:app
+# Se você usa factory "def create_app()" use:
+# APP      ?= "app.main:create_app()"
+
 CERT_DIR    ?= $(PWD)/certs
 CERT_DAYS   ?= 365
 CERT_KEY    := $(CERT_DIR)/localhost-key.pem
@@ -12,29 +16,40 @@ CERT_CRT    := $(CERT_DIR)/localhost-cert.pem
 REQ_DEV     ?= requirements-dev.txt
 REQ_MAIN    ?= requirements.txt
 
-.PHONY: default run run-http test install-dev certs clean-certs
+PY          ?= python
 
-default: run
+.PHONY: default run run-http run-prod-gunicorn run-prod-waitress test install-dev install-prod certs clean-certs
+.DEFAULT_GOAL := run
 
-# ---------- Tasks ----------
+# ---------- Dev (HTTPS local opcional) ----------
 run: install-dev certs
-FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT) \
-  --cert "$(CERT_CRT)" --key "$(CERT_KEY)"
+	FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT) \
+	  --cert "$(CERT_CRT)" --key "$(CERT_KEY)"
 
 run-http: install-dev
-FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT)
+	FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT)
+
+# ---------- Prod local (seu VPS / SSH). Em hospedagem compartilhada, use WSGI/Passenger abaixo ----------
+run-prod-gunicorn: install-prod
+	gunicorn -w 2 -b 0.0.0.0:$(PORT) $(APP)
+
+run-prod-waitress: install-prod
+	waitress-serve --host=0.0.0.0 --port=$(PORT) $(APP)
 
 test:
 	pytest -v --disable-warnings --maxfail=1
 
 install-dev:
 	if [ -f "$(REQ_DEV)" ]; then \
-		python -m pip install -r "$(REQ_DEV)"; \
+		$(PY) -m pip install -r "$(REQ_DEV)"; \
 	elif [ -f "$(REQ_MAIN)" ]; then \
-		python -m pip install -r "$(REQ_MAIN)"; \
+		$(PY) -m pip install -r "$(REQ_MAIN)"; \
 	else \
 		echo "Nenhum requirements encontrado."; \
 	fi
+
+install-prod:
+	$(PY) -m pip install -r requirements.txt
 
 certs:
 	mkdir -p "$(CERT_DIR)"
@@ -47,9 +62,3 @@ certs:
 
 clean-certs:
 	rm -f "$(CERT_KEY)" "$(CERT_CRT)"
-
-run-server: install-prod
-flask --app $(APP) run --host 0.0.0.0 --port $(PORT)
-
-install-prod:
-	python -m pip install -r requirements.txt
