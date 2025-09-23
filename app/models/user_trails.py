@@ -1,6 +1,6 @@
 # app/models/user_trails.py
 from typing import Optional
-from sqlalchemy import Integer, BigInteger, ForeignKey, DateTime
+from sqlalchemy import Integer, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
 from datetime import datetime
@@ -9,7 +9,7 @@ from datetime import datetime
 class UserTrails(Base):
     __tablename__ = "user_trails"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.user_id", ondelete="CASCADE")
     )
