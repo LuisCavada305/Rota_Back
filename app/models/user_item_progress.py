@@ -1,6 +1,6 @@
 # app/models/user_item_progress.py
 from typing import Optional
-from sqlalchemy import Integer, BigInteger, ForeignKey, DateTime
+from sqlalchemy import Integer, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 from datetime import datetime
@@ -9,7 +9,7 @@ from datetime import datetime
 class UserItemProgress(Base):
     __tablename__ = "user_item_progress"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.user_id", ondelete="CASCADE")
     )
@@ -19,6 +19,7 @@ class UserItemProgress(Base):
     status_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("lk_progress_status.id")
     )
+    progress_value: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     completed_at: Mapped[Optional["datetime"]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
