@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import trails, user_trails
 from app.routes.auth import router as auth_router
 from app.routes.me import router as me_router
+from app.routes import trail_items  
 
-app = FastAPI()
+app = FastAPI(swagger_ui_parameters={"defaultModelsExpandDepth": -1})
 
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -21,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(trail_items.router)
 app.include_router(trails.router)
 app.include_router(auth_router)
 app.include_router(me_router)

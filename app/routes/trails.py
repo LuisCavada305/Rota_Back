@@ -62,9 +62,6 @@ class TextValOut(BaseModel):
     text_val: str
 
 
-# ===== Endpoints existentes =====
-
-
 @router.get("/showcase", response_model=Dict[str, List[TrailOut]])
 def get_trails_showcase(db: Session = Depends(get_db)):
     repo = TrailsRepository(db)
@@ -81,9 +78,6 @@ def get_trails(db: Session = Depends(get_db)):
     return {
         "trails": [TrailOut.model_validate(t, from_attributes=True) for t in trails]
     }
-
-
-# ===== Novos =====
 
 
 @router.get("/{trail_id}", response_model=TrailOut)
@@ -112,7 +106,7 @@ def get_section_items(trail_id: int, section_id: int, db: Session = Depends(get_
             title=i.title or "",
             duration_seconds=i.duration_seconds,
             order_index=i.order_index,
-            type=(i.item_type.code if i.item_type else None),
+            type=(i.type.code if i.type else None),
         )
         for i in items
     ]
@@ -135,7 +129,7 @@ def get_sections_with_items(trail_id: int, db: Session = Depends(get_db)):
                         title=i.title or "",
                         duration_seconds=i.duration_seconds,
                         order_index=i.order_index,
-                        type=(i.item_type.code if i.item_type else None),
+                        type=(i.type.code if i.type else None),
                     )
                     for i in s.items
                 ],
@@ -177,7 +171,7 @@ class ItemProgressIn(BaseModel):
     progress_value: int | None = None  # % ou segundos, escolha um padrão
 
 
-@router.put("/trails/{trail_id}/items/{item_id}/progress")
+@router.put("/{trail_id}/items/{item_id}/progress")
 def set_item_progress(
     trail_id: int,
     item_id: int,
@@ -190,8 +184,8 @@ def set_item_progress(
     if not item:
         raise HTTPException(404, "Item não encontrado na trilha")
 
-    UserTrailsRepository(db).ensure_enrollment(user.id, trail_id)
+    UserTrailsRepository(db).ensure_enrollment(user.user_id, trail_id)
     UserProgressRepository(db).upsert_item_progress(
-        user.id, item_id, body.status, body.progress_value
+        user.user_id, item_id, body.status, body.progress_value
     )
     return {"ok": True}

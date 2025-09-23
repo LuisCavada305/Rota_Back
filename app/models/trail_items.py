@@ -30,4 +30,4 @@ class TrailItems(Base):
     )
 
     section: Mapped[Optional["TrailSections"]] = relationship(back_populates="items")
-    item_type: Mapped[Optional["LkItemType"]] = relationship()
+    type: Mapped[Optional["LkItemType"]] = relationship()

@@ -41,7 +41,7 @@ class TrailsRepository:
     def list_section_items(self, trail_id: int, section_id: int) -> List[TrailItemsORM]:
         return (
             self.db.query(TrailItemsORM)
-            .options(joinedload(TrailItemsORM.item_type))
+            .options(joinedload(TrailItemsORM.type))
             .filter(
                 TrailItemsORM.trail_id == trail_id,
                 TrailItemsORM.section_id == section_id,
@@ -55,7 +55,7 @@ class TrailsRepository:
         return (
             self.db.query(TrailSectionsORM)
             .options(
-                selectinload(TrailSectionsORM.items).joinedload(TrailItemsORM.item_type)
+                selectinload(TrailSectionsORM.items).joinedload(TrailItemsORM.type)
             )
             .filter(TrailSectionsORM.trail_id == trail_id)
             .order_by(TrailSectionsORM.order_index, TrailSectionsORM.id)
