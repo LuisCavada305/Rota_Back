@@ -10,7 +10,10 @@ from app.services.security import (
     verify_password,
     sign_session,
     set_session_cookie,
+    set_csrf_cookie,
+    generate_csrf_token,
     clear_session_cookie,
+    clear_csrf_cookie,
 )
 from app.repositories.UsersRepository import UsersRepository
 
@@ -61,6 +64,9 @@ def register():
     user_out = UserOut.from_orm_user(user).model_dump(mode="json")
     response = jsonify({"user": user_out})
     set_session_cookie(response, token, remember=payload.remember)
+    csrf_token = generate_csrf_token(str(user.user_id))
+    set_csrf_cookie(response, csrf_token, remember=payload.remember)
+    response.headers["X-CSRF-Token"] = csrf_token
     return response
 
 
@@ -90,6 +96,9 @@ def login():
     user_out = UserOut.from_orm_user(user).model_dump(mode="json")
     response = jsonify({"user": user_out})
     set_session_cookie(response, token, remember=payload.remember)
+    csrf_token = generate_csrf_token(str(user.user_id))
+    set_csrf_cookie(response, csrf_token, remember=payload.remember)
+    response.headers["X-CSRF-Token"] = csrf_token
     return response
 
 
@@ -97,4 +106,5 @@ def login():
 def logout():
     response = jsonify({"ok": True})
     clear_session_cookie(response)
+    clear_csrf_cookie(response)
     return response
