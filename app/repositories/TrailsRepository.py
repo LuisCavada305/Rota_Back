@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.trails import Trails as TrailsORM
@@ -24,31 +24,54 @@ class TrailsRepository:
             .all()
         )
 
-    def list_all(self) -> List[TrailsORM]:
-        return self.db.query(TrailsORM).order_by(TrailsORM.name).all()
+    def list_all(self, offset: int, limit: int) -> Tuple[List[TrailsORM], int]:
+        query = self.db.query(TrailsORM)
+        total = query.count()
+        items = (
+            query.order_by(TrailsORM.name)
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return items, total
 
     def get_trail(self, trail_id: int) -> TrailsORM | None:
         return self.db.query(TrailsORM).filter(TrailsORM.id == trail_id).first()
 
-    def list_sections(self, trail_id: int) -> List[TrailSectionsORM]:
-        return (
-            self.db.query(TrailSectionsORM)
-            .filter(TrailSectionsORM.trail_id == trail_id)
-            .order_by(TrailSectionsORM.order_index, TrailSectionsORM.id)
+    def list_sections(
+        self, trail_id: int, offset: int, limit: int
+    ) -> Tuple[List[TrailSectionsORM], int]:
+        query = self.db.query(TrailSectionsORM).filter(
+            TrailSectionsORM.trail_id == trail_id
+        )
+        total = query.count()
+        items = (
+            query.order_by(TrailSectionsORM.order_index, TrailSectionsORM.id)
+            .offset(offset)
+            .limit(limit)
             .all()
         )
+        return items, total
 
-    def list_section_items(self, trail_id: int, section_id: int) -> List[TrailItemsORM]:
-        return (
+    def list_section_items(
+        self, trail_id: int, section_id: int, *, offset: int, limit: int
+    ) -> Tuple[List[TrailItemsORM], int]:
+        query = (
             self.db.query(TrailItemsORM)
             .options(joinedload(TrailItemsORM.type))
             .filter(
                 TrailItemsORM.trail_id == trail_id,
                 TrailItemsORM.section_id == section_id,
             )
-            .order_by(TrailItemsORM.order_index, TrailItemsORM.id)
+        )
+        total = query.count()
+        items = (
+            query.order_by(TrailItemsORM.order_index, TrailItemsORM.id)
+            .offset(offset)
+            .limit(limit)
             .all()
         )
+        return items, total
 
     def list_sections_with_items(self, trail_id: int) -> List[TrailSectionsORM]:
         # carrega items e o tipo do item
