@@ -318,15 +318,19 @@ def set_item_progress(trail_id: int, item_id: int):
     is_privileged = user.role_code in {"Admin", "Manager"}
 
     if item_type == "VIDEO" and not is_privileged:
-        skip_ahead_window = max(30, int(duration_seconds * 0.1)) if duration_seconds else 30
+        skip_ahead_window = (
+            max(30, int(duration_seconds * 0.1)) if duration_seconds else 30
+        )
         if reported_seconds > existing_seconds:
             delta = reported_seconds - existing_seconds
             if delta > skip_ahead_window and body.status != "COMPLETED":
                 return (
-                    jsonify({
-                        "detail": "Você não pode adiantar o vídeo. Assista na ordem para registrar o progresso.",
-                        "reason": "skip_ahead_blocked",
-                    }),
+                    jsonify(
+                        {
+                            "detail": "Você não pode adiantar o vídeo. Assista na ordem para registrar o progresso.",
+                            "reason": "skip_ahead_blocked",
+                        }
+                    ),
                     403,
                 )
 
@@ -336,10 +340,12 @@ def set_item_progress(trail_id: int, item_id: int):
             target = min(required_seconds, duration_seconds)
             if effective_seconds + tolerance < target:
                 return (
-                    jsonify({
-                        "detail": "Finalize o vídeo antes de marcar como concluído.",
-                        "reason": "insufficient_watch_time",
-                    }),
+                    jsonify(
+                        {
+                            "detail": "Finalize o vídeo antes de marcar como concluído.",
+                            "reason": "insufficient_watch_time",
+                        }
+                    ),
                     422,
                 )
 
@@ -348,6 +354,8 @@ def set_item_progress(trail_id: int, item_id: int):
         user.user_id,
         item_id,
         body.status,
-        progress_value=effective_seconds if item_type == "VIDEO" else body.progress_value,
+        progress_value=(
+            effective_seconds if item_type == "VIDEO" else body.progress_value
+        ),
     )
     return jsonify({"ok": True})
