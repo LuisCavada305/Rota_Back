@@ -36,4 +36,8 @@ def me():
     if not user:
         abort(404, description="Usuário não encontrado")
     user_out = UserOut.from_orm_user(user).model_dump(mode="json")
-    return jsonify({"user": user_out})
+    response = jsonify({"user": user_out})
+    csrf_token = request.cookies.get(settings.CSRF_COOKIE_NAME)
+    if csrf_token:
+        response.headers["X-CSRF-Token"] = csrf_token
+    return response

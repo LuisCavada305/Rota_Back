@@ -5,12 +5,14 @@ from typing import List, Optional, Literal
 from flask import Blueprint, jsonify, abort, request
 from pydantic import BaseModel, ValidationError
 
+from werkzeug.exceptions import Unauthorized
+
 from app.core.db import get_db
 from app.models.trail_items import TrailItems as TrailItemsORM
 from app.repositories.TrailsRepository import TrailsRepository
 from app.repositories.UserProgressRepository import UserProgressRepository
 from app.repositories.UserTrailsRepository import UserTrailsRepository
-from app.services.security import get_current_user, enforce_csrf
+from app.services.security import get_current_user, enforce_csrf, get_current_user_id
 
 
 bp = Blueprint("trails", __name__, url_prefix="/trails")
@@ -25,6 +27,11 @@ class TrailOut(BaseModel):
     author: Optional[str] = None
     review: Optional[float] = None
     description: Optional[str] = None
+    progress_percent: Optional[float] = None
+    status: Optional[str] = None
+    completed_at: Optional[str] = None
+    is_completed: Optional[bool] = None
+    nextAction: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -78,6 +85,24 @@ def _build_pagination_metadata(page: int, page_size: int, total: int) -> dict:
     }
 
 
+def _attach_progress_metadata(db, trail_payload: List[dict]) -> List[dict]:
+    try:
+        user_id = get_current_user_id()
+    except Unauthorized:
+        return trail_payload
+
+    repo = UserTrailsRepository(db)
+    for item in trail_payload:
+        progress = repo.get_progress_for_user(user_id, item["id"])
+        if progress:
+            item["progress_percent"] = progress["computed_progress_percent"]
+            item["status"] = progress.get("status")
+            item["completed_at"] = progress.get("completed_at")
+            item["is_completed"] = progress.get("status") == "COMPLETED"
+            item["nextAction"] = progress.get("nextAction")
+    return trail_payload
+
+
 @bp.get("/showcase")
 def get_trails_showcase():
     db = get_db()
@@ -87,6 +112,7 @@ def get_trails_showcase():
         TrailOut.model_validate(t, from_attributes=True).model_dump(mode="json")
         for t in trails
     ]
+    data = _attach_progress_metadata(db, data)
     return jsonify({"trails": data})
 
 
@@ -104,6 +130,7 @@ def get_trails():
         TrailOut.model_validate(t, from_attributes=True).model_dump(mode="json")
         for t in trails
     ]
+    data = _attach_progress_metadata(db, data)
     return jsonify({
         "trails": data,
         "pagination": _build_pagination_metadata(page, page_size, total),
@@ -118,6 +145,7 @@ def get_trail(trail_id: int):
     if not t:
         abort(404, description="Trail not found")
     data = TrailOut.model_validate(t, from_attributes=True).model_dump(mode="json")
+    data = _attach_progress_metadata(db, [data])[0]
     return jsonify(data)
 
 
@@ -255,6 +283,9 @@ def set_item_progress(trail_id: int, item_id: int):
 
     UserTrailsRepository(db).ensure_enrollment(user.user_id, trail_id)
     UserProgressRepository(db).upsert_item_progress(
-        user.user_id, item_id, body.status, body.progress_value
+        user.user_id,
+        item_id,
+        body.status,
+        progress_value=body.progress_value,
     )
     return jsonify({"ok": True})

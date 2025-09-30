@@ -5,7 +5,7 @@ import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from passlib.hash import bcrypt
-from flask import Response, request
+from flask import Response, request, has_request_context
 from werkzeug.exceptions import Unauthorized, Forbidden
 
 from app.core.db import get_db
@@ -17,7 +17,20 @@ CSRF_TTL_SECONDS = 12 * 60 * 60  # 12 horas
 
 
 def _secure_cookie_flag() -> bool:
-    return settings.ENV != "dev"
+    if settings.ENV != "dev":
+        return True
+
+    if not has_request_context():
+        return False
+
+    if request.is_secure:
+        return True
+
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+    if forwarded_proto.lower().split(",", 1)[0].strip() == "https":
+        return True
+
+    return False
 
 
 def hash_password(password: str) -> str:
@@ -41,23 +54,27 @@ def sign_session(payload: dict, expires_in: timedelta = timedelta(days=1)) -> st
 def set_session_cookie(res: Response, token: str, remember: bool):
     # remember -> 1 dia; caso contrário, cookie de sessão
     max_age = 1 * 24 * 60 * 60 if remember else None
+    secure_flag = _secure_cookie_flag()
+    samesite_mode = "none" if secure_flag else "lax"
     res.set_cookie(
         key=settings.COOKIE_NAME,
         value=token,
         httponly=True,
-        samesite="none",  # se front/back estiverem em domínios diferentes
-        secure=_secure_cookie_flag(),
+        samesite=samesite_mode,
+        secure=secure_flag,
         path="/",
         max_age=max_age,
     )
 
 
 def clear_session_cookie(res: Response):
+    secure_flag = _secure_cookie_flag()
+    samesite_mode = "none" if secure_flag else "lax"
     res.delete_cookie(
         key=settings.COOKIE_NAME,
         httponly=True,
-        samesite="none",
-        secure=_secure_cookie_flag(),
+        samesite=samesite_mode,
+        secure=secure_flag,
         path="/",
     )
 
@@ -77,23 +94,27 @@ def generate_csrf_token(user_id: str) -> str:
 
 def set_csrf_cookie(res: Response, token: str, remember: bool):
     max_age = 1 * 24 * 60 * 60 if remember else None
+    secure_flag = _secure_cookie_flag()
+    samesite_mode = "none" if secure_flag else "lax"
     res.set_cookie(
         key=settings.CSRF_COOKIE_NAME,
         value=token,
         httponly=False,
-        samesite="none",
-        secure=_secure_cookie_flag(),
+        samesite=samesite_mode,
+        secure=secure_flag,
         path="/",
         max_age=max_age,
     )
 
 
 def clear_csrf_cookie(res: Response):
+    secure_flag = _secure_cookie_flag()
+    samesite_mode = "none" if secure_flag else "lax"
     res.delete_cookie(
         key=settings.CSRF_COOKIE_NAME,
         httponly=False,
-        samesite="none",
-        secure=_secure_cookie_flag(),
+        samesite=samesite_mode,
+        secure=secure_flag,
         path="/",
     )
 
@@ -115,7 +136,20 @@ def _is_valid_csrf_token(user_id: str, token: str) -> bool:
 
 def enforce_csrf(request_obj=None):
     req = request_obj or request
-    header_token = req.headers.get("X-CSRF-Token")
+    header_token = None
+    # Accept common header spellings so different clients can reuse the same token value
+    normalized_headers = {k.lower(): v for k, v in req.headers.items()}
+    header_candidates = (
+        "x-csrf-token",
+        "x-csrftoken",
+        "x-xsrf-token",
+        "x-xsrftoken",
+        settings.CSRF_COOKIE_NAME.lower(),
+    )
+    for header_name in header_candidates:
+        header_token = normalized_headers.get(header_name)
+        if header_token:
+            break
     cookie_token = req.cookies.get(settings.CSRF_COOKIE_NAME)
 
     if not header_token or not cookie_token:

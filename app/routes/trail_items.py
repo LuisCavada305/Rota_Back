@@ -1,16 +1,57 @@
 # app/routes/trail_items.py
 from __future__ import annotations
 
-from typing import Optional, Literal
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Dict, Literal, Optional
 
-from flask import Blueprint, jsonify, abort
-from pydantic import BaseModel
+from flask import Blueprint, abort, jsonify, request
+from pydantic import BaseModel, ValidationError, field_validator
+from sqlalchemy.orm import selectinload
 
 from app.core.db import get_db
+from app.models.form_answers import FormAnswer as FormAnswerORM
+from app.models.form_question_options import (
+    FormQuestionOption as FormQuestionOptionORM,
+)
+from app.models.form_questions import FormQuestion as FormQuestionORM
+from app.models.form_submissions import FormSubmission as FormSubmissionORM
+from app.models.forms import Form as FormORM
 from app.models.trail_items import TrailItems as TrailItemsORM
+from app.repositories.UserTrailsRepository import UserTrailsRepository
+from app.repositories.UserProgressRepository import UserProgressRepository
+from app.services.security import enforce_csrf, get_current_user
 
 
 bp = Blueprint("trail_items", __name__, url_prefix="/trails")
+
+
+QuestionKind = Literal["ESSAY", "TRUE_OR_FALSE", "SINGLE_CHOICE", "UNKNOWN"]
+
+
+class FormOptionOut(BaseModel):
+    id: int
+    text: str
+    order_index: int
+
+
+class FormQuestionOut(BaseModel):
+    id: int
+    prompt: str
+    type: QuestionKind
+    required: bool
+    order_index: int
+    points: float
+    options: list[FormOptionOut] = []
+
+
+class FormOut(BaseModel):
+    id: int
+    title: Optional[str] = None
+    description: Optional[str] = None
+    min_score_to_pass: float
+    randomize_questions: Optional[bool] = None
+    questions: list[FormQuestionOut]
 
 
 class TrailItemDetailOut(BaseModel):
@@ -25,6 +66,42 @@ class TrailItemDetailOut(BaseModel):
     description_html: str = ""
     prev_item_id: Optional[int] = None
     next_item_id: Optional[int] = None
+    form: Optional[FormOut] = None
+
+
+class FormAnswerIn(BaseModel):
+    question_id: int
+    selected_option_id: Optional[int] = None
+    answer_text: Optional[str] = None
+
+    @field_validator("answer_text")
+    @classmethod
+    def strip_answer(cls, value: Optional[str]):
+        if value is None:
+            return value
+        return value.strip()
+
+
+class FormSubmissionIn(BaseModel):
+    answers: list[FormAnswerIn]
+    duration_seconds: Optional[int] = None
+
+
+class FormSubmissionAnswerOut(BaseModel):
+    question_id: int
+    is_correct: Optional[bool]
+    points_awarded: Optional[float]
+
+
+class FormSubmissionOut(BaseModel):
+    submission_id: int
+    score: float
+    score_points: float
+    max_points: float
+    max_score: float
+    passed: Optional[bool]
+    requires_manual_review: bool
+    answers: list[FormSubmissionAnswerOut]
 
 
 def _extract_youtube_id(url: str) -> str:
@@ -37,30 +114,72 @@ def _extract_youtube_id(url: str) -> str:
     return m.group(1) if m else ""
 
 
-@bp.get("/<int:trail_id>/items/<int:item_id>")
-def get_item_detail(trail_id: int, item_id: int):
-    db = get_db()
-    # 1) Carrega o item garantindo que pertence à trilha
+def _question_type_code(question: FormQuestionORM) -> QuestionKind:
+    code = question.question_type.code if question.question_type else None
+    if code in {"ESSAY", "TRUE_OR_FALSE", "SINGLE_CHOICE"}:
+        return code  # type: ignore[return-value]
+    return "UNKNOWN"
+
+
+def _option_is_correct(option: FormQuestionOptionORM) -> Optional[bool]:
+    if option.is_correct is not None:
+        return option.is_correct
+    if option.is_correct_yn is not None:
+        return option.is_correct_yn.upper() == "Y"
+    return None
+
+
+def _question_is_required(question: FormQuestionORM) -> bool:
+    if question.required is not None:
+        return bool(question.required)
+    if question.required_yn is not None:
+        return question.required_yn.upper() == "Y"
+    return False
+
+
+def _form_randomize(form: FormORM) -> Optional[bool]:
+    if form.randomize_questions is not None:
+        return bool(form.randomize_questions)
+    if form.randomize_questions_yn is not None:
+        return form.randomize_questions_yn.upper() == "S"
+    return None
+
+
+def _load_item(db, trail_id: int, item_id: int) -> TrailItemsORM:
     item = (
         db.query(TrailItemsORM)
+        .options(selectinload(TrailItemsORM.type))
         .filter(TrailItemsORM.id == item_id, TrailItemsORM.trail_id == trail_id)
         .first()
     )
     if not item:
         abort(404, description="Item não encontrado")
+    return item
 
-    # 2) Extrai youtubeId apenas se type == VIDEO
-    url = item.url or ""
-    item_type = item.type.code if item.type is not None else "DOC"
-    youtube_id = _extract_youtube_id(url) if item_type == "VIDEO" else ""
 
-    # 3) Calcula prev/next
+def _load_form(db, trail_item_id: int) -> FormORM:
+    form = (
+        db.query(FormORM)
+        .options(
+            selectinload(FormORM.questions)
+            .selectinload(FormQuestionORM.options),
+            selectinload(FormORM.questions)
+            .selectinload(FormQuestionORM.question_type),
+        )
+        .filter(FormORM.trail_item_id == trail_item_id)
+        .first()
+    )
+    if not form:
+        abort(404, description="Formulário não encontrado para este item")
+    return form
+
+
+def _compute_prev_next(db, item: TrailItemsORM) -> tuple[Optional[int], Optional[int]]:
+    trail_id = item.trail_id
     prev_id: Optional[int] = None
     next_id: Optional[int] = None
 
-    # Se tiver seção: navega por section_id + order_index
     if item.section_id is not None:
-        # PREV: menor order_index que o atual, ordem desc (tie-break por id)
         prev_row = (
             db.query(TrailItemsORM.id)
             .filter(
@@ -74,7 +193,6 @@ def get_item_detail(trail_id: int, item_id: int):
         if prev_row:
             prev_id = prev_row[0]
 
-        # NEXT: maior order_index que o atual, ordem asc (tie-break por id)
         next_row = (
             db.query(TrailItemsORM.id)
             .filter(
@@ -88,7 +206,6 @@ def get_item_detail(trail_id: int, item_id: int):
         if next_row:
             next_id = next_row[0]
     else:
-        # Sem seção (usa índice da trilha)
         prev_row = (
             db.query(TrailItemsORM.id)
             .filter(
@@ -115,17 +232,273 @@ def get_item_detail(trail_id: int, item_id: int):
         if next_row:
             next_id = next_row[0]
 
+    return prev_id, next_id
+
+
+@bp.get("/<int:trail_id>/items/<int:item_id>")
+def get_item_detail(trail_id: int, item_id: int):
+    db = get_db()
+    item = _load_item(db, trail_id, item_id)
+
+    item_type = item.type.code if item.type is not None else "DOC"
+    youtube_id = _extract_youtube_id(item.url or "") if item_type == "VIDEO" else ""
+    prev_id, next_id = _compute_prev_next(db, item)
+
+    description_html = ""
+    form_payload: Optional[FormOut] = None
+
+    if item_type == "FORM":
+        form = _load_form(db, item.id)
+        questions_out: list[FormQuestionOut] = []
+        for question in sorted(form.questions, key=lambda q: (q.order_index, q.id)):
+            q_type = _question_type_code(question)
+            options_out: list[FormOptionOut] = []
+            for option in sorted(question.options, key=lambda o: (o.order_index, o.id)):
+                option_text = option.option_text or ""
+                options_out.append(
+                    FormOptionOut(
+                        id=option.id,
+                        text=option_text,
+                        order_index=option.order_index or 0,
+                    )
+                )
+
+            questions_out.append(
+                FormQuestionOut(
+                    id=question.id,
+                    prompt=question.prompt or "",
+                    type=q_type,
+                    required=_question_is_required(question),
+                    order_index=question.order_index or 0,
+                    points=float(question.points or Decimal("0")),
+                    options=options_out,
+                )
+            )
+
+        form_payload = FormOut(
+            id=form.id,
+            title=form.title,
+            description=form.description,
+            min_score_to_pass=float(form.min_score_to_pass or Decimal("0")),
+            randomize_questions=_form_randomize(form),
+            questions=questions_out,
+        )
+        description_html = form.description or ""
+
     data = TrailItemDetailOut(
         id=item.id,
         trail_id=item.trail_id,
         section_id=item.section_id,
         title=item.title or "",
-        type=item_type,  # "VIDEO" | "DOC" | "FORM"
+        type=item_type,
         youtubeId=youtube_id,
         duration_seconds=item.duration_seconds,
-        required_percentage=70,  # seu schema não tem esse campo; mantendo padrão
-        description_html="",  # idem
+        required_percentage=70,
+        description_html=description_html,
         prev_item_id=prev_id,
         next_item_id=next_id,
+        form=form_payload,
     ).model_dump(mode="json")
     return jsonify(data)
+
+
+@bp.post("/<int:trail_id>/items/<int:item_id>/form-submissions")
+def submit_form(trail_id: int, item_id: int):
+    db = get_db()
+    payload_raw = request.get_json(silent=True) or {}
+    try:
+        payload = FormSubmissionIn.model_validate(payload_raw)
+    except ValidationError as exc:
+        return jsonify({"detail": exc.errors()}), 422
+
+    enforce_csrf()
+    user = get_current_user()
+
+    item = _load_item(db, trail_id, item_id)
+    item_type = item.type.code if item.type is not None else "DOC"
+    if item_type != "FORM":
+        abort(400, description="Este item não é um formulário")
+
+    form = _load_form(db, item.id)
+
+    # garante matrícula
+    UserTrailsRepository(db).ensure_enrollment(user.user_id, trail_id)
+
+    question_map: Dict[int, FormQuestionORM] = {
+        question.id: question
+        for question in sorted(form.questions, key=lambda q: (q.order_index, q.id))
+    }
+
+    provided_answers = {answer.question_id: answer for answer in payload.answers}
+
+    invalid_questions = [
+        answer.question_id
+        for answer in payload.answers
+        if answer.question_id not in question_map
+    ]
+    if invalid_questions:
+        return (
+            jsonify(
+                {
+                    "detail": "Uma ou mais questões informadas são inválidas para este formulário",
+                    "invalid_questions": invalid_questions,
+                }
+            ),
+            422,
+        )
+
+    missing_required = [
+        q.id
+        for q in question_map.values()
+        if _question_is_required(q)
+        and (q.id not in provided_answers or not _has_response(provided_answers[q.id], q))
+    ]
+    if missing_required:
+        return (
+            jsonify(
+                {
+                    "detail": "Responda todas as questões obrigatórias",
+                    "missing_questions": missing_required,
+                }
+            ),
+            422,
+        )
+
+    auto_total_points = Decimal("0")
+    auto_scored_points = Decimal("0")
+    requires_manual_review = False
+    answer_outputs: list[FormSubmissionAnswerOut] = []
+    answer_entities: list[FormAnswerORM] = []
+
+    for question in question_map.values():
+        q_type = _question_type_code(question)
+        answer_in = provided_answers.get(question.id)
+
+        if q_type == "ESSAY":
+            response_text = (
+                answer_in.answer_text.strip()
+                if answer_in and answer_in.answer_text
+                else None
+            )
+            if _question_is_required(question) or response_text:
+                requires_manual_review = True
+            answer_entities.append(
+                FormAnswerORM(
+                    question_id=question.id,
+                    answer_text=response_text,
+                    is_correct=None,
+                    points_awarded=None,
+                )
+            )
+            answer_outputs.append(
+                FormSubmissionAnswerOut(
+                    question_id=question.id,
+                    is_correct=None,
+                    points_awarded=None,
+                )
+            )
+            continue
+
+        # perguntas objetivas
+        points_value = question.points if question.points is not None else Decimal("0")
+        auto_total_points += points_value
+        selected_option_id = answer_in.selected_option_id if answer_in else None
+
+        selected_option: Optional[FormQuestionOptionORM] = None
+        if selected_option_id is not None:
+            selected_option = next(
+                (opt for opt in question.options if opt.id == selected_option_id),
+                None,
+            )
+            if not selected_option:
+                return (
+                    jsonify(
+                        {
+                            "detail": f"Opção inválida para a questão {question.id}",
+                            "question_id": question.id,
+                        }
+                    ),
+                    422,
+                )
+
+        is_correct = False
+        points_awarded: Decimal | None = Decimal("0")
+        if selected_option is not None:
+            option_correct = _option_is_correct(selected_option)
+            is_correct = option_correct is True
+            if option_correct is True:
+                auto_scored_points += points_value
+                points_awarded = points_value
+        else:
+            is_correct = False
+
+        answer_entities.append(
+            FormAnswerORM(
+                question_id=question.id,
+                selected_option_id=selected_option.id if selected_option else None,
+                is_correct=is_correct,
+                points_awarded=points_awarded,
+            )
+        )
+        answer_outputs.append(
+            FormSubmissionAnswerOut(
+                question_id=question.id,
+                is_correct=is_correct,
+                points_awarded=float(points_awarded) if points_awarded is not None else None,
+            )
+        )
+
+    max_points = float(auto_total_points) if auto_total_points > 0 else 0.0
+    score_points = float(auto_scored_points)
+    score_percent = (
+        float((auto_scored_points / auto_total_points) * Decimal(100))
+        if auto_total_points > 0
+        else 0.0
+    )
+
+    min_score = float(form.min_score_to_pass or Decimal("0"))
+    passed: Optional[bool]
+    if requires_manual_review:
+        passed = None
+    else:
+        passed = score_percent >= min_score
+
+    submission = FormSubmissionORM(
+        form_id=form.id,
+        user_id=user.user_id,
+        submitted_at=datetime.now(timezone.utc),
+        score=Decimal(str(round(score_percent, 2))),
+        passed=passed,
+        duration_seconds=payload.duration_seconds,
+    )
+    submission.answers = answer_entities
+    db.add(submission)
+    db.flush()
+    db.commit()
+
+    if passed is True:
+        UserProgressRepository(db).upsert_item_progress(
+            user.user_id,
+            item.id,
+            "COMPLETED",
+            last_passed_submission_id=submission.id,
+        )
+
+    response_body = FormSubmissionOut(
+        submission_id=submission.id,
+        score=round(score_percent, 2),
+        score_points=round(score_points, 2),
+        max_points=round(max_points, 2),
+        max_score=100.0 if auto_total_points > 0 else 0.0,
+        passed=passed,
+        requires_manual_review=requires_manual_review,
+        answers=answer_outputs,
+    )
+    return jsonify(response_body.model_dump(mode="json"))
+
+
+def _has_response(answer: FormAnswerIn, question: FormQuestionORM) -> bool:
+    q_type = _question_type_code(question)
+    if q_type == "ESSAY":
+        return bool(answer.answer_text and answer.answer_text.strip())
+    return answer.selected_option_id is not None

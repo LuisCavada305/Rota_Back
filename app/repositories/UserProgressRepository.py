@@ -1,10 +1,13 @@
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
+
 from app.models.user_item_progress import UserItemProgress as UserItemProgressORM
 from app.models.lk_progress_status import LkProgressStatus as LkProgressStatusORM
+from app.models.trail_items import TrailItems as TrailItemsORM
 
 from app.models.lk_progress_status import LkProgressStatus
+from app.repositories.UserTrailsRepository import UserTrailsRepository
 
 
 class UserProgressRepository:
@@ -24,6 +27,8 @@ class UserProgressRepository:
         item_id: int,
         status_code: str,
         progress_value: int | None = None,
+        *,
+        last_passed_submission_id: Optional[int] = None,
     ):
         status_id = self._status_id(status_code)
         uip = (
@@ -44,8 +49,29 @@ class UserProgressRepository:
         uip.status_id = status_id
         if progress_value is not None:
             uip.progress_value = progress_value
+        if last_passed_submission_id is not None:
+            uip.last_passed_submission_id = last_passed_submission_id
+
+        now_expr = func.now()
+        uip.last_interaction = now_expr
+        uip.last_interaction_utc = now_expr
+
         if status_code == "COMPLETED":
-            uip.completed_at = func.now()
+            uip.completed_at = now_expr
+            uip.completed_at_utc = now_expr
+        else:
+            uip.completed_at = None
+            uip.completed_at_utc = None
+
+        self.db.flush()
+
+        trail_id = (
+            self.db.query(TrailItemsORM.trail_id)
+            .filter(TrailItemsORM.id == item_id)
+            .scalar()
+        )
+        if trail_id is not None:
+            UserTrailsRepository(self.db).sync_user_trail_progress(user_id, trail_id)
 
         self.db.commit()
         return uip

@@ -20,7 +20,18 @@ def create_app() -> Flask:
     app = Flask(__name__)
 
     # Use SEMPRE o Flask-CORS real
-    FlaskCORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+    FlaskCORS(
+        app,
+        origins=ALLOWED_ORIGINS,
+        supports_credentials=True,
+        expose_headers=["X-CSRF-Token", "X-CSRFToken"],
+        allow_headers=[
+            "Content-Type",
+            "X-CSRF-Token",
+            "X-CSRFToken",
+            "X-Requested-With",
+        ],
+    )
 
     app.register_blueprint(trail_items_bp)
     app.register_blueprint(trails_bp)

@@ -1,9 +1,9 @@
 # app/models/user_trails.py
 from typing import Optional
-from sqlalchemy import Integer, BigInteger, ForeignKey, DateTime
+from datetime import datetime
+from sqlalchemy import Integer, BigInteger, ForeignKey, DateTime, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
-from datetime import datetime
 
 
 class UserTrails(Base):
@@ -14,6 +14,21 @@ class UserTrails(Base):
         ForeignKey("users.user_id", ondelete="CASCADE")
     )
     trail_id: Mapped[int] = mapped_column(ForeignKey("trails.id", ondelete="CASCADE"))
-    started_at: Mapped[Optional["datetime"]] = mapped_column(
+    status_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("lk_enrollment_status.id"), nullable=True
+    )
+    progress_percent: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 2), nullable=True
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    started_at_utc: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
+    completed_at_utc: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=False), nullable=True
     )

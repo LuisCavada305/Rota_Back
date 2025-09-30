@@ -8,6 +8,7 @@ from .base import Base
 if TYPE_CHECKING:
     from .trail_sections import TrailSections
     from .lk_item_type import LkItemType
+    from .forms import Form
 
 
 class TrailItems(Base):
@@ -31,3 +32,4 @@ class TrailItems(Base):
 
     section: Mapped[Optional["TrailSections"]] = relationship(back_populates="items")
     type: Mapped[Optional["LkItemType"]] = relationship()
+    form: Mapped[Optional["Form"]] = relationship("Form", back_populates="trail_item", uselist=False)
