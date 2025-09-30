@@ -25,7 +25,9 @@ class FormSubmission(Base):
     user_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=True
     )
-    submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     score: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0.00"))
     passed: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

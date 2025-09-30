@@ -69,4 +69,6 @@ def get_sections_progress(trail_id: int):
     repo = UserTrailsRepository(db)
     repo.ensure_enrollment(user_id, trail_id)
     sections = repo.get_sections_progress(user_id, trail_id)
-    return jsonify([SectionProgressOut(**section).model_dump(mode="json") for section in sections])
+    return jsonify(
+        [SectionProgressOut(**section).model_dump(mode="json") for section in sections]
+    )

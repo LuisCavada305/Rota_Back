@@ -45,12 +45,18 @@ class UserTrailsRepository:
         self.ensure_enrollment(user_id, trail_id)
         return self.get_progress_for_user(user_id, trail_id)
 
-    def get_progress_for_user(self, user_id: int, trail_id: int) -> Optional[Dict[str, Any]]:
+    def get_progress_for_user(
+        self, user_id: int, trail_id: int
+    ) -> Optional[Dict[str, Any]]:
         self.sync_user_trail_progress(user_id, trail_id)
 
         ut = (
             self.db.query(UserTrailsORM, LkEnrollmentStatusORM.code)
-            .join(LkEnrollmentStatusORM, LkEnrollmentStatusORM.id == UserTrailsORM.status_id, isouter=True)
+            .join(
+                LkEnrollmentStatusORM,
+                LkEnrollmentStatusORM.id == UserTrailsORM.status_id,
+                isouter=True,
+            )
             .filter(
                 UserTrailsORM.user_id == user_id, UserTrailsORM.trail_id == trail_id
             )
@@ -63,8 +69,16 @@ class UserTrailsRepository:
 
         status_code = ut[1] if ut else None
         trail_row = ut[0] if ut else None
-        enrolledAt = trail_row.started_at.isoformat() if trail_row and trail_row.started_at else None
-        nextAction = "Continuar" if done > 0 and done < total else ("Começar" if done == 0 else "Revisar")
+        enrolledAt = (
+            trail_row.started_at.isoformat()
+            if trail_row and trail_row.started_at
+            else None
+        )
+        nextAction = (
+            "Continuar"
+            if done > 0 and done < total
+            else ("Começar" if done == 0 else "Revisar")
+        )
 
         return {
             "done": done,
@@ -73,7 +87,11 @@ class UserTrailsRepository:
             "nextAction": nextAction,
             "enrolledAt": enrolledAt,
             "status": status_code,
-            "completed_at": trail_row.completed_at.isoformat() if trail_row and trail_row.completed_at else None,
+            "completed_at": (
+                trail_row.completed_at.isoformat()
+                if trail_row and trail_row.completed_at
+                else None
+            ),
         }
 
     def ensure_enrollment(self, user_id: int, trail_id: int):
@@ -117,7 +135,9 @@ class UserTrailsRepository:
     def sync_user_trail_progress(self, user_id: int, trail_id: int):
         ut = (
             self.db.query(UserTrailsORM)
-            .filter(UserTrailsORM.user_id == user_id, UserTrailsORM.trail_id == trail_id)
+            .filter(
+                UserTrailsORM.user_id == user_id, UserTrailsORM.trail_id == trail_id
+            )
             .first()
         )
         if not ut:
@@ -169,7 +189,11 @@ class UserTrailsRepository:
                 LkProgressStatusORM.id == UserItemProgressORM.status_id,
             )
             .filter(TrailItemsORM.trail_id == trail_id)
-            .order_by(TrailItemsORM.section_id.nullsfirst(), TrailItemsORM.order_index, TrailItemsORM.id)
+            .order_by(
+                TrailItemsORM.section_id.nullsfirst(),
+                TrailItemsORM.order_index,
+                TrailItemsORM.id,
+            )
             .all()
         )
 
@@ -178,12 +202,16 @@ class UserTrailsRepository:
                 "item_id": row.item_id,
                 "status": row.status,
                 "progress_value": row.progress_value,
-                "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+                "completed_at": (
+                    row.completed_at.isoformat() if row.completed_at else None
+                ),
             }
             for row in rows
         ]
 
-    def get_sections_progress(self, user_id: int, trail_id: int) -> List[Dict[str, Any]]:
+    def get_sections_progress(
+        self, user_id: int, trail_id: int
+    ) -> List[Dict[str, Any]]:
         subquery = (
             self.db.query(
                 TrailItemsORM.section_id.label("section_id"),
@@ -204,7 +232,9 @@ class UserTrailsRepository:
                 LkProgressStatusORM,
                 LkProgressStatusORM.id == UserItemProgressORM.status_id,
             )
-            .filter(TrailItemsORM.trail_id == trail_id, TrailItemsORM.section_id.isnot(None))
+            .filter(
+                TrailItemsORM.trail_id == trail_id, TrailItemsORM.section_id.isnot(None)
+            )
             .group_by(TrailItemsORM.section_id)
             .subquery()
         )
@@ -228,7 +258,11 @@ class UserTrailsRepository:
                 "title": row.title,
                 "total": row.total or 0,
                 "done": row.done or 0,
-                "percent": float(round(100.0 * (row.done or 0) / row.total, 2)) if row.total else 0.0,
+                "percent": (
+                    float(round(100.0 * (row.done or 0) / row.total, 2))
+                    if row.total
+                    else 0.0
+                ),
             }
             for row in rows
         ]

@@ -24,8 +24,12 @@ class FormQuestionOption(Base):
     is_correct_yn: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    question: Mapped["FormQuestion"] = relationship("FormQuestion", back_populates="options")
-    answers: Mapped[list["FormAnswer"]] = relationship("FormAnswer", back_populates="selected_option")
+    question: Mapped["FormQuestion"] = relationship(
+        "FormQuestion", back_populates="options"
+    )
+    answers: Mapped[list["FormAnswer"]] = relationship(
+        "FormAnswer", back_populates="selected_option"
+    )
 
     def correct(self) -> Optional[bool]:
         if self.is_correct is not None:

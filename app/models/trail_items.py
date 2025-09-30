@@ -32,4 +32,6 @@ class TrailItems(Base):
 
     section: Mapped[Optional["TrailSections"]] = relationship(back_populates="items")
     type: Mapped[Optional["LkItemType"]] = relationship()
-    form: Mapped[Optional["Form"]] = relationship("Form", back_populates="trail_item", uselist=False)
+    form: Mapped[Optional["Form"]] = relationship(
+        "Form", back_populates="trail_item", uselist=False
+    )

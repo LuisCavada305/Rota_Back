@@ -25,12 +25,22 @@ class FormAnswer(Base):
         BigInteger, ForeignKey("form_question.id", ondelete="CASCADE"), nullable=True
     )
     selected_option_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("form_question_options.id", ondelete="SET NULL"), nullable=True
+        BigInteger,
+        ForeignKey("form_question_options.id", ondelete="SET NULL"),
+        nullable=True,
     )
     answer_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_correct: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    points_awarded: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2), nullable=True)
+    points_awarded: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(6, 2), nullable=True
+    )
 
-    submission: Mapped["FormSubmission"] = relationship("FormSubmission", back_populates="answers")
-    question: Mapped["FormQuestion"] = relationship("FormQuestion", back_populates="answers")
-    selected_option: Mapped[Optional["FormQuestionOption"]] = relationship("FormQuestionOption", back_populates="answers")
+    submission: Mapped["FormSubmission"] = relationship(
+        "FormSubmission", back_populates="answers"
+    )
+    question: Mapped["FormQuestion"] = relationship(
+        "FormQuestion", back_populates="answers"
+    )
+    selected_option: Mapped[Optional["FormQuestionOption"]] = relationship(
+        "FormQuestionOption", back_populates="answers"
+    )

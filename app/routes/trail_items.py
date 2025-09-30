@@ -161,10 +161,8 @@ def _load_form(db, trail_item_id: int) -> FormORM:
     form = (
         db.query(FormORM)
         .options(
-            selectinload(FormORM.questions)
-            .selectinload(FormQuestionORM.options),
-            selectinload(FormORM.questions)
-            .selectinload(FormQuestionORM.question_type),
+            selectinload(FormORM.questions).selectinload(FormQuestionORM.options),
+            selectinload(FormORM.questions).selectinload(FormQuestionORM.question_type),
         )
         .filter(FormORM.trail_item_id == trail_item_id)
         .first()
@@ -351,7 +349,9 @@ def submit_form(trail_id: int, item_id: int):
         q.id
         for q in question_map.values()
         if _question_is_required(q)
-        and (q.id not in provided_answers or not _has_response(provided_answers[q.id], q))
+        and (
+            q.id not in provided_answers or not _has_response(provided_answers[q.id], q)
+        )
     ]
     if missing_required:
         return (
@@ -444,7 +444,9 @@ def submit_form(trail_id: int, item_id: int):
             FormSubmissionAnswerOut(
                 question_id=question.id,
                 is_correct=is_correct,
-                points_awarded=float(points_awarded) if points_awarded is not None else None,
+                points_awarded=(
+                    float(points_awarded) if points_awarded is not None else None
+                ),
             )
         )
 

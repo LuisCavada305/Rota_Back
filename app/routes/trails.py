@@ -131,10 +131,12 @@ def get_trails():
         for t in trails
     ]
     data = _attach_progress_metadata(db, data)
-    return jsonify({
-        "trails": data,
-        "pagination": _build_pagination_metadata(page, page_size, total),
-    })
+    return jsonify(
+        {
+            "trails": data,
+            "pagination": _build_pagination_metadata(page, page_size, total),
+        }
+    )
 
 
 @bp.get("/<int:trail_id>")
@@ -163,10 +165,12 @@ def get_sections(trail_id: int):
         SectionOut.model_validate(s, from_attributes=True).model_dump(mode="json")
         for s in secs
     ]
-    return jsonify({
-        "sections": data,
-        "pagination": _build_pagination_metadata(page, page_size, total),
-    })
+    return jsonify(
+        {
+            "sections": data,
+            "pagination": _build_pagination_metadata(page, page_size, total),
+        }
+    )
 
 
 @bp.get("/<int:trail_id>/sections/<int:section_id>/items")

@@ -34,7 +34,9 @@ class FormQuestion(Base):
 
     form: Mapped["Form"] = relationship("Form", back_populates="questions")
     options: Mapped[List["FormQuestionOption"]] = relationship(
-        "FormQuestionOption", back_populates="question", order_by="FormQuestionOption.order_index"
+        "FormQuestionOption",
+        back_populates="question",
+        order_by="FormQuestionOption.order_index",
     )
     question_type: Mapped[Optional[LkQuestionType]] = relationship("LkQuestionType")
     answers: Mapped[List["FormAnswer"]] = relationship(

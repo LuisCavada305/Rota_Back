@@ -33,5 +33,7 @@ class UserItemProgress(Base):
         DateTime(timezone=False), nullable=True
     )
     last_passed_submission_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey("form_submissions.id", ondelete="SET NULL"), nullable=True
+        BigInteger,
+        ForeignKey("form_submissions.id", ondelete="SET NULL"),
+        nullable=True,
     )

@@ -19,10 +19,15 @@ class Form(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     trail_item_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("trail_items.id", ondelete="CASCADE"), unique=True, nullable=True
+        BigInteger,
+        ForeignKey("trail_items.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=True,
     )
     title: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    description: Mapped[Optional[str]] = mapped_column("description", Text, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(
+        "description", Text, nullable=True
+    )
     min_score_to_pass: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), nullable=False, default=Decimal("70.00")
     )
