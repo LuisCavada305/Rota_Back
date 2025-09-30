@@ -31,6 +31,7 @@ class UserProgressRepository:
         last_passed_submission_id: Optional[int] = None,
     ):
         status_id = self._status_id(status_code)
+        completed_status_id = self._status_id("COMPLETED")
         uip = (
             self.db.query(UserItemProgressORM)
             .filter(
@@ -46,9 +47,15 @@ class UserProgressRepository:
             )
             self.db.add(uip)
 
-        uip.status_id = status_id
+        if uip.status_id == completed_status_id and status_code != "COMPLETED":
+            status_code = "COMPLETED"
+            status_id = completed_status_id
+        else:
+            uip.status_id = status_id
+
         if progress_value is not None:
-            uip.progress_value = progress_value
+            prev_value = uip.progress_value or 0
+            uip.progress_value = max(prev_value, max(0, progress_value))
         if last_passed_submission_id is not None:
             uip.last_passed_submission_id = last_passed_submission_id
 
@@ -59,7 +66,7 @@ class UserProgressRepository:
         if status_code == "COMPLETED":
             uip.completed_at = now_expr
             uip.completed_at_utc = now_expr
-        else:
+        elif uip.status_id != completed_status_id:
             uip.completed_at = None
             uip.completed_at_utc = None
 

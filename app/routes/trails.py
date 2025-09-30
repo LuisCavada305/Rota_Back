@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from typing import List, Optional, Literal
+import math
 
 from flask import Blueprint, jsonify, abort, request
 from pydantic import BaseModel, ValidationError
+from sqlalchemy.orm import selectinload
 
 from werkzeug.exceptions import Unauthorized
 
 from app.core.db import get_db
 from app.models.trail_items import TrailItems as TrailItemsORM
+from app.models.user_item_progress import UserItemProgress as UserItemProgressORM
 from app.repositories.TrailsRepository import TrailsRepository
 from app.repositories.UserProgressRepository import UserProgressRepository
 from app.repositories.UserTrailsRepository import UserTrailsRepository
@@ -281,15 +284,70 @@ def set_item_progress(trail_id: int, item_id: int):
     user = get_current_user()
     db = get_db()
 
-    item = db.query(TrailItemsORM).filter_by(id=item_id, trail_id=trail_id).first()
+    item = (
+        db.query(TrailItemsORM)
+        .options(selectinload(TrailItemsORM.type))
+        .filter_by(id=item_id, trail_id=trail_id)
+        .first()
+    )
     if not item:
         abort(404, description="Item não encontrado na trilha")
+
+    item_type = item.type.code if item.type is not None else "DOC"
+    duration_seconds = item.duration_seconds or 0
+    required_percentage = getattr(item, "required_percentage", None) or 70
+
+    # progresso anterior registrado
+    existing_progress = (
+        db.query(UserItemProgressORM)
+        .filter(
+            UserItemProgressORM.user_id == user.user_id,
+            UserItemProgressORM.trail_item_id == item_id,
+        )
+        .first()
+    )
+    existing_seconds = 0
+    if existing_progress and existing_progress.progress_value is not None:
+        existing_seconds = max(0, existing_progress.progress_value)
+
+    reported_seconds = max(0, body.progress_value or 0)
+    effective_seconds = max(existing_seconds, reported_seconds)
+    if duration_seconds:
+        effective_seconds = min(effective_seconds, duration_seconds)
+
+    is_privileged = user.role_code in {"Admin", "Manager"}
+
+    if item_type == "VIDEO" and not is_privileged:
+        skip_ahead_window = max(30, int(duration_seconds * 0.1)) if duration_seconds else 30
+        if reported_seconds > existing_seconds:
+            delta = reported_seconds - existing_seconds
+            if delta > skip_ahead_window and body.status != "COMPLETED":
+                return (
+                    jsonify({
+                        "detail": "Você não pode adiantar o vídeo. Assista na ordem para registrar o progresso.",
+                        "reason": "skip_ahead_blocked",
+                    }),
+                    403,
+                )
+
+        if body.status == "COMPLETED" and duration_seconds:
+            required_seconds = math.ceil(duration_seconds * (required_percentage / 100))
+            tolerance = max(5, int(duration_seconds * 0.05))
+            target = min(required_seconds, duration_seconds)
+            if effective_seconds + tolerance < target:
+                return (
+                    jsonify({
+                        "detail": "Finalize o vídeo antes de marcar como concluído.",
+                        "reason": "insufficient_watch_time",
+                    }),
+                    422,
+                )
 
     UserTrailsRepository(db).ensure_enrollment(user.user_id, trail_id)
     UserProgressRepository(db).upsert_item_progress(
         user.user_id,
         item_id,
         body.status,
-        progress_value=body.progress_value,
+        progress_value=effective_seconds if item_type == "VIDEO" else body.progress_value,
     )
     return jsonify({"ok": True})

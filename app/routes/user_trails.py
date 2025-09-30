@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.core.db import get_db
 from app.repositories.UserTrailsRepository import UserTrailsRepository
+from app.services.security import get_current_user, enforce_csrf
 from app.services.security import get_current_user_id
 
 
@@ -71,4 +72,31 @@ def get_sections_progress(trail_id: int):
     sections = repo.get_sections_progress(user_id, trail_id)
     return jsonify(
         [SectionProgressOut(**section).model_dump(mode="json") for section in sections]
+    )
+
+
+@bp.post("/<int:trail_id>/enroll")
+def enroll_in_trail(trail_id: int):
+    enforce_csrf()
+    user = get_current_user()
+    db = get_db()
+    repo = UserTrailsRepository(db)
+    repo.ensure_enrollment(user.user_id, trail_id)
+    progress = repo.get_progress_for_user(user.user_id, trail_id) or {
+        "done": 0,
+        "total": repo.count_items_in_trail(trail_id),
+        "computed_progress_percent": 0.0,
+        "nextAction": "Começar",
+        "enrolledAt": None,
+        "status": "ENROLLED",
+        "completed_at": None,
+    }
+    first_item_id = repo.get_first_trail_item_id(trail_id)
+    return jsonify(
+        {
+            "ok": True,
+            "trail_id": trail_id,
+            "first_item_id": first_item_id,
+            "progress": progress,
+        }
     )

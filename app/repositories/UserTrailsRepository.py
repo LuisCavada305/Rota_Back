@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func, case
 
 from app.models.user_trails import UserTrails as UserTrailsORM
@@ -172,6 +172,7 @@ class UserTrailsRepository:
         self.db.flush()
 
     def get_items_progress(self, user_id: int, trail_id: int) -> List[Dict[str, Any]]:
+        section_alias = aliased(TrailSectionsORM)
         rows = (
             self.db.query(
                 TrailItemsORM.id.label("item_id"),
@@ -188,9 +189,11 @@ class UserTrailsRepository:
                 LkProgressStatusORM,
                 LkProgressStatusORM.id == UserItemProgressORM.status_id,
             )
+            .outerjoin(section_alias, section_alias.id == TrailItemsORM.section_id)
             .filter(TrailItemsORM.trail_id == trail_id)
             .order_by(
-                TrailItemsORM.section_id.nullsfirst(),
+                case((TrailItemsORM.section_id.is_(None), 0), else_=1),
+                section_alias.order_index.asc().nullsfirst(),
                 TrailItemsORM.order_index,
                 TrailItemsORM.id,
             )
@@ -266,3 +269,19 @@ class UserTrailsRepository:
             }
             for row in rows
         ]
+
+    def get_first_trail_item_id(self, trail_id: int) -> Optional[int]:
+        section_alias = aliased(TrailSectionsORM)
+        row = (
+            self.db.query(TrailItemsORM.id)
+            .outerjoin(section_alias, section_alias.id == TrailItemsORM.section_id)
+            .filter(TrailItemsORM.trail_id == trail_id)
+            .order_by(
+                case((TrailItemsORM.section_id.is_(None), 0), else_=1),
+                section_alias.order_index.asc().nullsfirst(),
+                TrailItemsORM.order_index.asc(),
+                TrailItemsORM.id.asc(),
+            )
+            .first()
+        )
+        return row[0] if row else None
