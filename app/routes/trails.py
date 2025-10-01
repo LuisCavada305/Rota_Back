@@ -113,14 +113,18 @@ def _attach_progress_metadata(db, trail_payload: List[dict]) -> List[dict]:
         return trail_payload
 
     repo = UserTrailsRepository(db)
+    trail_ids = [int(item["id"]) for item in trail_payload]
+    progress_map = repo.get_progress_map_for_user(user_id, trail_ids, sync=False)
+
     for item in trail_payload:
-        progress = repo.get_progress_for_user(user_id, item["id"])
-        if progress:
-            item["progress_percent"] = progress["computed_progress_percent"]
-            item["status"] = progress.get("status")
-            item["completed_at"] = progress.get("completed_at")
-            item["is_completed"] = progress.get("status") == "COMPLETED"
-            item["nextAction"] = progress.get("nextAction")
+        progress = progress_map.get(int(item["id"]))
+        if not progress:
+            continue
+        item["progress_percent"] = progress.get("computed_progress_percent")
+        item["status"] = progress.get("status")
+        item["completed_at"] = progress.get("completed_at")
+        item["is_completed"] = progress.get("status") == "COMPLETED"
+        item["nextAction"] = progress.get("nextAction")
     return trail_payload
 
 

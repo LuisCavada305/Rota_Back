@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Iterable
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func, case
 
@@ -48,51 +48,10 @@ class UserTrailsRepository:
     def get_progress_for_user(
         self, user_id: int, trail_id: int
     ) -> Optional[Dict[str, Any]]:
-        self.sync_user_trail_progress(user_id, trail_id)
-
-        ut = (
-            self.db.query(UserTrailsORM, LkEnrollmentStatusORM.code)
-            .join(
-                LkEnrollmentStatusORM,
-                LkEnrollmentStatusORM.id == UserTrailsORM.status_id,
-                isouter=True,
-            )
-            .filter(
-                UserTrailsORM.user_id == user_id, UserTrailsORM.trail_id == trail_id
-            )
-            .first()
+        progress_map = self.get_progress_map_for_user(
+            user_id, [trail_id], sync=True
         )
-
-        total = self.count_items_in_trail(trail_id)
-        done = self._done_items(user_id, trail_id)
-        pct = round(100.0 * done / total, 2) if total > 0 else 0.0
-
-        status_code = ut[1] if ut else None
-        trail_row = ut[0] if ut else None
-        enrolledAt = (
-            trail_row.started_at.isoformat()
-            if trail_row and trail_row.started_at
-            else None
-        )
-        nextAction = (
-            "Continuar"
-            if done > 0 and done < total
-            else ("Começar" if done == 0 else "Revisar")
-        )
-
-        return {
-            "done": done,
-            "total": total,
-            "computed_progress_percent": pct,
-            "nextAction": nextAction,
-            "enrolledAt": enrolledAt,
-            "status": status_code,
-            "completed_at": (
-                trail_row.completed_at.isoformat()
-                if trail_row and trail_row.completed_at
-                else None
-            ),
-        }
+        return progress_map.get(trail_id)
 
     def ensure_enrollment(self, user_id: int, trail_id: int):
         ut = (
@@ -170,6 +129,128 @@ class UserTrailsRepository:
             ut.completed_at_utc = None
 
         self.db.flush()
+
+    def _count_items_for_trails(self, trail_ids: Iterable[int]) -> Dict[int, int]:
+        ids = list({int(tid) for tid in trail_ids})
+        if not ids:
+            return {}
+        rows = (
+            self.db.query(
+                TrailItemsORM.trail_id,
+                func.count(TrailItemsORM.id).label("total"),
+            )
+            .filter(TrailItemsORM.trail_id.in_(ids))
+            .group_by(TrailItemsORM.trail_id)
+            .all()
+        )
+        return {trail_id: total for trail_id, total in rows}
+
+    def _done_items_for_trails(
+        self, user_id: int, trail_ids: Iterable[int]
+    ) -> Dict[int, int]:
+        ids = list({int(tid) for tid in trail_ids})
+        if not ids:
+            return {}
+        completed_status_id = self._progress_status_id("COMPLETED")
+        if not completed_status_id:
+            return {}
+
+        rows = (
+            self.db.query(
+                TrailItemsORM.trail_id,
+                func.count(UserItemProgressORM.id).label("done"),
+            )
+            .join(
+                UserItemProgressORM,
+                (UserItemProgressORM.trail_item_id == TrailItemsORM.id)
+                & (UserItemProgressORM.user_id == user_id),
+            )
+            .filter(
+                TrailItemsORM.trail_id.in_(ids),
+                UserItemProgressORM.status_id == completed_status_id,
+            )
+            .group_by(TrailItemsORM.trail_id)
+            .all()
+        )
+        return {trail_id: done for trail_id, done in rows}
+
+    def get_progress_map_for_user(
+        self, user_id: int, trail_ids: Iterable[int], *, sync: bool = False
+    ) -> Dict[int, Dict[str, Any]]:
+        ids = list({int(tid) for tid in trail_ids})
+        if not ids:
+            return {}
+
+        if sync:
+            for trail_id in ids:
+                self.sync_user_trail_progress(user_id, trail_id)
+
+        totals = self._count_items_for_trails(ids)
+        done_map = self._done_items_for_trails(user_id, ids)
+
+        progress_rows = (
+            self.db.query(
+                UserTrailsORM.trail_id,
+                UserTrailsORM.progress_percent,
+                UserTrailsORM.started_at,
+                UserTrailsORM.completed_at,
+                LkEnrollmentStatusORM.code.label("status_code"),
+            )
+            .outerjoin(
+                LkEnrollmentStatusORM,
+                LkEnrollmentStatusORM.id == UserTrailsORM.status_id,
+            )
+            .filter(
+                UserTrailsORM.user_id == user_id,
+                UserTrailsORM.trail_id.in_(ids),
+            )
+            .all()
+        )
+
+        row_map = {row.trail_id: row for row in progress_rows}
+        progress_map: Dict[int, Dict[str, Any]] = {}
+
+        for trail_id in ids:
+            total = int(totals.get(trail_id, 0))
+            done = int(done_map.get(trail_id, 0))
+            row = row_map.get(trail_id)
+
+            if total > 0:
+                done = min(done, total)
+
+            if row and row.progress_percent is not None:
+                pct = float(row.progress_percent)
+            elif total > 0:
+                pct = round(100.0 * done / total, 2)
+            else:
+                pct = 0.0
+
+            if total > 0 and done >= total:
+                next_action = "Revisar"
+            elif done > 0:
+                next_action = "Continuar"
+            else:
+                next_action = "Começar"
+
+            progress_map[trail_id] = {
+                "done": done,
+                "total": total,
+                "computed_progress_percent": pct,
+                "nextAction": next_action,
+                "enrolledAt": (
+                    row.started_at.isoformat()
+                    if row and row.started_at
+                    else None
+                ),
+                "status": row.status_code if row else None,
+                "completed_at": (
+                    row.completed_at.isoformat()
+                    if row and row.completed_at
+                    else None
+                ),
+            }
+
+        return progress_map
 
     def find_blocking_item(
         self, user_id: int, trail_id: int, target_item_id: int
