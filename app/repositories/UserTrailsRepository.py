@@ -171,6 +171,69 @@ class UserTrailsRepository:
 
         self.db.flush()
 
+    def find_blocking_item(
+        self, user_id: int, trail_id: int, target_item_id: int
+    ) -> Optional[Dict[str, Any]]:
+        section_alias = aliased(TrailSectionsORM)
+        rows = (
+            self.db.query(
+                TrailItemsORM.id.label("item_id"),
+                TrailItemsORM.title.label("title"),
+                TrailItemsORM.requires_completion,
+                TrailItemsORM.requires_completion_yn,
+                LkProgressStatusORM.code.label("status_code"),
+            )
+            .outerjoin(
+                UserItemProgressORM,
+                (UserItemProgressORM.trail_item_id == TrailItemsORM.id)
+                & (UserItemProgressORM.user_id == user_id),
+            )
+            .outerjoin(
+                LkProgressStatusORM,
+                LkProgressStatusORM.id == UserItemProgressORM.status_id,
+            )
+            .outerjoin(section_alias, section_alias.id == TrailItemsORM.section_id)
+            .filter(TrailItemsORM.trail_id == trail_id)
+            .order_by(
+                case((TrailItemsORM.section_id.is_(None), 0), else_=1),
+                section_alias.order_index.asc().nullsfirst(),
+                TrailItemsORM.order_index.asc().nullsfirst(),
+                TrailItemsORM.id.asc(),
+            )
+            .all()
+        )
+
+        blocker: Optional[Dict[str, Any]] = None
+
+        def _requires_completion(row) -> bool:
+            if getattr(row, "requires_completion", None) is not None:
+                return bool(row.requires_completion)
+            flag = getattr(row, "requires_completion_yn", None)
+            if flag is not None:
+                return str(flag).upper() == "S"
+            return False
+
+        for row in rows:
+            if row.item_id == target_item_id:
+                return blocker
+
+            if not _requires_completion(row):
+                continue
+
+            status_code = row.status_code or ""
+            if status_code == "COMPLETED":
+                if blocker and blocker.get("id") == row.item_id:
+                    blocker = None
+                continue
+
+            if blocker is None:
+                blocker = {
+                    "id": row.item_id,
+                    "title": row.title or "",
+                }
+
+        return blocker
+
     def get_items_progress(self, user_id: int, trail_id: int) -> List[Dict[str, Any]]:
         section_alias = aliased(TrailSectionsORM)
         rows = (

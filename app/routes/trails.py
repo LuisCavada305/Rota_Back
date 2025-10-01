@@ -46,6 +46,7 @@ class ItemOut(BaseModel):
     duration_seconds: Optional[int] = None
     order_index: Optional[int] = 0
     type: Optional[str] = None
+    requires_completion: bool = False
 
     class Config:
         from_attributes = True
@@ -66,6 +67,23 @@ class SectionWithItemsOut(SectionOut):
 
 class TextValOut(BaseModel):
     text_val: str
+
+
+def _build_locked_response(blocked_item: dict):
+    title = (blocked_item.get("title") or "").strip()
+    return (
+        jsonify(
+            {
+                "detail": "Conclua o item obrigatório antes de prosseguir.",
+                "reason": "item_locked",
+                "blocked_item": {
+                    "id": blocked_item.get("id"),
+                    "title": title,
+                },
+            }
+        ),
+        423,
+    )
 
 
 def _parse_positive_int(value: str | None, default: int, *, minimum: int = 1) -> int:
@@ -195,6 +213,7 @@ def get_section_items(trail_id: int, section_id: int):
             duration_seconds=i.duration_seconds,
             order_index=i.order_index,
             type=(i.type.code if i.type else None),
+            requires_completion=i.completion_required(),
         ).model_dump(mode="json")
         for i in items
     ]
@@ -225,6 +244,7 @@ def get_sections_with_items(trail_id: int):
                         duration_seconds=i.duration_seconds,
                         order_index=i.order_index,
                         type=(i.type.code if i.type else None),
+                        requires_completion=i.completion_required(),
                     )
                     for i in s.items
                 ],
@@ -293,6 +313,13 @@ def set_item_progress(trail_id: int, item_id: int):
     if not item:
         abort(404, description="Item não encontrado na trilha")
 
+    user_trails_repo = UserTrailsRepository(db)
+    blocker = user_trails_repo.find_blocking_item(
+        user.user_id, trail_id, item_id
+    )
+    if blocker:
+        return _build_locked_response(blocker)
+
     item_type = item.type.code if item.type is not None else "DOC"
     duration_seconds = item.duration_seconds or 0
     required_percentage = getattr(item, "required_percentage", None) or 70
@@ -349,7 +376,7 @@ def set_item_progress(trail_id: int, item_id: int):
                     422,
                 )
 
-    UserTrailsRepository(db).ensure_enrollment(user.user_id, trail_id)
+    user_trails_repo.ensure_enrollment(user.user_id, trail_id)
     UserProgressRepository(db).upsert_item_progress(
         user.user_id,
         item_id,

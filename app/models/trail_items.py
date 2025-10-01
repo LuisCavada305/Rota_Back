@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import Integer, String, ForeignKey
+from sqlalchemy import Boolean, Integer, String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 
@@ -29,9 +29,22 @@ class TrailItems(Base):
     item_type_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("lk_item_type.id"), nullable=True
     )
+    requires_completion: Mapped[Optional[bool]] = mapped_column(
+        Boolean, nullable=True
+    )
+    requires_completion_yn: Mapped[Optional[str]] = mapped_column(
+        String(1), nullable=True
+    )
 
     section: Mapped[Optional["TrailSections"]] = relationship(back_populates="items")
     type: Mapped[Optional["LkItemType"]] = relationship()
     form: Mapped[Optional["Form"]] = relationship(
         "Form", back_populates="trail_item", uselist=False
     )
+
+    def completion_required(self) -> bool:
+        if self.requires_completion is not None:
+            return bool(self.requires_completion)
+        if self.requires_completion_yn is not None:
+            return self.requires_completion_yn.upper() == "S"
+        return False

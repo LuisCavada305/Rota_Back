@@ -67,6 +67,7 @@ class TrailItemDetailOut(BaseModel):
     prev_item_id: Optional[int] = None
     next_item_id: Optional[int] = None
     form: Optional[FormOut] = None
+    requires_completion: bool = False
 
 
 class FormAnswerIn(BaseModel):
@@ -233,10 +234,33 @@ def _compute_prev_next(db, item: TrailItemsORM) -> tuple[Optional[int], Optional
     return prev_id, next_id
 
 
+def _build_locked_response(blocked_item: dict):
+    title = (blocked_item.get("title") or "").strip()
+    return (
+        jsonify(
+            {
+                "detail": "Conclua o item obrigatório antes de prosseguir.",
+                "reason": "item_locked",
+                "blocked_item": {
+                    "id": blocked_item.get("id"),
+                    "title": title,
+                },
+            }
+        ),
+        423,
+    )
+
+
 @bp.get("/<int:trail_id>/items/<int:item_id>")
 def get_item_detail(trail_id: int, item_id: int):
     db = get_db()
+    user = get_current_user()
     item = _load_item(db, trail_id, item_id)
+
+    user_trail_repo = UserTrailsRepository(db)
+    blocker = user_trail_repo.find_blocking_item(user.user_id, trail_id, item_id)
+    if blocker:
+        return _build_locked_response(blocker)
 
     item_type = item.type.code if item.type is not None else "DOC"
     youtube_id = _extract_youtube_id(item.url or "") if item_type == "VIDEO" else ""
@@ -296,6 +320,7 @@ def get_item_detail(trail_id: int, item_id: int):
         prev_item_id=prev_id,
         next_item_id=next_id,
         form=form_payload,
+        requires_completion=item.completion_required(),
     ).model_dump(mode="json")
     return jsonify(data)
 
@@ -317,10 +342,15 @@ def submit_form(trail_id: int, item_id: int):
     if item_type != "FORM":
         abort(400, description="Este item não é um formulário")
 
+    user_trail_repo = UserTrailsRepository(db)
+    blocker = user_trail_repo.find_blocking_item(user.user_id, trail_id, item_id)
+    if blocker:
+        return _build_locked_response(blocker)
+
     form = _load_form(db, item.id)
 
     # garante matrícula
-    UserTrailsRepository(db).ensure_enrollment(user.user_id, trail_id)
+    user_trail_repo.ensure_enrollment(user.user_id, trail_id)
 
     question_map: Dict[int, FormQuestionORM] = {
         question.id: question
