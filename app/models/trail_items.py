@@ -29,9 +29,7 @@ class TrailItems(Base):
     item_type_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("lk_item_type.id"), nullable=True
     )
-    requires_completion: Mapped[Optional[bool]] = mapped_column(
-        Boolean, nullable=True
-    )
+    requires_completion: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     requires_completion_yn: Mapped[Optional[str]] = mapped_column(
         String(1), nullable=True
     )

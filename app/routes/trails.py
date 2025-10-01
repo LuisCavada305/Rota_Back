@@ -314,9 +314,7 @@ def set_item_progress(trail_id: int, item_id: int):
         abort(404, description="Item não encontrado na trilha")
 
     user_trails_repo = UserTrailsRepository(db)
-    blocker = user_trails_repo.find_blocking_item(
-        user.user_id, trail_id, item_id
-    )
+    blocker = user_trails_repo.find_blocking_item(user.user_id, trail_id, item_id)
     if blocker:
         return _build_locked_response(blocker)
 
