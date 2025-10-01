@@ -48,9 +48,7 @@ class UserTrailsRepository:
     def get_progress_for_user(
         self, user_id: int, trail_id: int
     ) -> Optional[Dict[str, Any]]:
-        progress_map = self.get_progress_map_for_user(
-            user_id, [trail_id], sync=True
-        )
+        progress_map = self.get_progress_map_for_user(user_id, [trail_id], sync=True)
         return progress_map.get(trail_id)
 
     def ensure_enrollment(self, user_id: int, trail_id: int):
@@ -238,15 +236,11 @@ class UserTrailsRepository:
                 "computed_progress_percent": pct,
                 "nextAction": next_action,
                 "enrolledAt": (
-                    row.started_at.isoformat()
-                    if row and row.started_at
-                    else None
+                    row.started_at.isoformat() if row and row.started_at else None
                 ),
                 "status": row.status_code if row else None,
                 "completed_at": (
-                    row.completed_at.isoformat()
-                    if row and row.completed_at
-                    else None
+                    row.completed_at.isoformat() if row and row.completed_at else None
                 ),
             }
 
