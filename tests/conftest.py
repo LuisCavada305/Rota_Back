@@ -1,6 +1,9 @@
 # tests/conftest.py
 import os
 
+os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
+
 import pytest
 from sqlalchemy import create_engine, event, insert, select
 from sqlalchemy.orm import sessionmaker
