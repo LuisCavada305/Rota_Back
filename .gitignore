@@ -4,3 +4,5 @@ __pycache__/
 .vscode/
 certs/
 *.pem
+results.json
+metric.json
