@@ -5,6 +5,9 @@ HOST        ?= 127.0.0.1   # local dev; em prod compart., provedor decide
 PORT        ?= 8001
 # Se você tem "app/main.py" com "app = Flask(__name__)" use:
 APP         ?= app.main:app
+ASGI_APP    ?= app.asgi:app
+UVICORN_WORKERS ?= 2
+UVICORN_KEEP_ALIVE ?= 5
 # Se você usa factory "def create_app()" use:
 # APP      ?= "app.main:create_app()"
 
@@ -18,7 +21,7 @@ REQ_MAIN    ?= requirements.txt
 
 PY          ?= python
 
-.PHONY: default run run-http run-prod-gunicorn run-prod-waitress test install-dev install-prod certs clean-certs
+.PHONY: default run run-http run-prod-gunicorn run-prod-uvicorn run-prod-waitress test install-dev install-prod certs clean-certs
 .DEFAULT_GOAL := run
 
 # ---------- Dev (HTTPS local opcional) ----------
@@ -30,8 +33,14 @@ run-http: install-dev
 	FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT)
 
 # ---------- Prod local (seu VPS / SSH). Em hospedagem compartilhada, use WSGI/Passenger abaixo ----------
-run-prod-gunicorn: install-prod
-	gunicorn -w 2 -b 0.0.0.0:$(PORT) $(APP)
+run-prod-uvicorn: install-prod certs
+	uvicorn $(ASGI_APP) \
+	  --host 0.0.0.0 --port $(PORT) \
+	  --workers $(UVICORN_WORKERS) \
+	  --timeout-keep-alive $(UVICORN_KEEP_ALIVE) \
+	  --ssl-certfile "$(CERT_CRT)" --ssl-keyfile "$(CERT_KEY)"
+
+run-prod-gunicorn: run-prod-uvicorn
 
 run-prod-waitress: install-prod
 	waitress-serve --host=0.0.0.0 --port=$(PORT) $(APP)

@@ -2,7 +2,7 @@ import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:5000';
+const BASE_URL = __ENV.BASE_URL || 'https://127.0.0.1:8001';
 const AUTH_EMAIL = __ENV.AUTH_EMAIL || '';
 const AUTH_PASSWORD = __ENV.AUTH_PASSWORD || 'PerfTest@123';
 const AUTH_USERNAME = __ENV.AUTH_USERNAME || '';
@@ -12,6 +12,8 @@ const DEFAULT_VUS = Number(__ENV.PRE_ALLOCATED_VUS || 20);
 const ENABLE_WRITE_SCENARIOS = (__ENV.ENABLE_WRITE_SCENARIOS || 'true').toLowerCase() !== 'false';
 const SESSION_COOKIE_NAME = __ENV.SESSION_COOKIE_NAME || 'rota_session';
 const CSRF_COOKIE_NAME = __ENV.CSRF_COOKIE_NAME || 'rota_csrf';
+const INSECURE_SKIP_TLS_VERIFY =
+  (__ENV.INSECURE_SKIP_TLS_VERIFY || 'true').toLowerCase() !== 'false';
 
 const BASE_SCENARIO = {
   executor: 'constant-arrival-rate',
@@ -93,6 +95,7 @@ const endpointDefinitions = {
     name: 'GET /trails/:id/items/:itemId',
     method: 'GET',
     path: (ctx) => `/trails/${ctx.dataset.trailId}/items/${ctx.dataset.itemId}`,
+    authRequired: true,
     requires: ['dataset.trailId', 'dataset.itemId'],
   },
   auth_login: {
@@ -172,6 +175,7 @@ const endpointDefinitions = {
 };
 
 export const options = {
+  insecureSkipTLSVerify: INSECURE_SKIP_TLS_VERIFY,
   scenarios: {
     trails_showcase: scenario({ exec: 'trails_showcase' }),
     trails_list: scenario({ exec: 'trails_list' }),
@@ -487,11 +491,12 @@ export const trail_form_submission = buildExec('trail_form_submission');
 
 export function handleSummary(data) {
   const durationSeconds = data.state?.testRunDurationMs ? data.state.testRunDurationMs / 1000 : 0;
-  const totalRequests = data.metrics?.http_reqs?.count || 0;
+  const totalRequests = data.metrics?.http_reqs?.values?.count || 0;
   const rps = durationSeconds ? totalRequests / durationSeconds : 0;
   const rpm = rps * 60;
+  const totalBytesReceived = data.metrics?.data_received?.values?.sum || 0;
   const throughputBytesPerSecond = durationSeconds
-    ? (data.metrics?.data_received?.sum || 0) / durationSeconds
+    ? totalBytesReceived / durationSeconds
     : 0;
   const throughputKibPerSecond = throughputBytesPerSecond / 1024;
 

@@ -23,7 +23,8 @@ Environment variables:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `BASE_URL` | `http://localhost:5000` | Base URL of the API under test. |
+| `BASE_URL` | `https://127.0.0.1:8001` | Base URL of the API under test. |
+| `INSECURE_SKIP_TLS_VERIFY` | `true` | Skip TLS verification for self-signed dev certificates; set to `false` for trusted endpoints. |
 | `AUTH_EMAIL` | auto-generated | Email for the synthetic load-test user. Existing credentials are reused when provided. |
 | `AUTH_PASSWORD` | `PerfTest@123` | Password for the synthetic user (used when creating or logging in). |
 | `AUTH_USERNAME` | derived from email | Username for the synthetic user. |
