@@ -10,6 +10,7 @@ from app.models.lk_progress_status import LkProgressStatus as LkProgressStatusOR
 from app.models.lk_enrollment_status import LkEnrollmentStatus as LkEnrollmentStatusORM
 
 from app.services.security import get_current_user_id
+from app.repositories.CertificatesRepository import CertificatesRepository
 
 
 class UserTrailsRepository:
@@ -109,7 +110,6 @@ class UserTrailsRepository:
         completed_status_id = self._enrollment_status_id("COMPLETED")
         in_progress_status_id = self._enrollment_status_id("IN_PROGRESS")
         enrolled_status_id = self._enrollment_status_id("ENROLLED")
-
         if total > 0 and done >= total:
             if completed_status_id:
                 ut.status_id = completed_status_id
@@ -127,6 +127,9 @@ class UserTrailsRepository:
             ut.completed_at_utc = None
 
         self.db.flush()
+
+        if total > 0 and done >= total:
+            CertificatesRepository(self.db).ensure_certificate(user_id, trail_id)
 
     def _count_items_for_trails(self, trail_ids: Iterable[int]) -> Dict[int, int]:
         ids = list({int(tid) for tid in trail_ids})
@@ -206,6 +209,8 @@ class UserTrailsRepository:
         )
 
         row_map = {row.trail_id: row for row in progress_rows}
+        cert_repo = CertificatesRepository(self.db)
+        cert_map = cert_repo.get_for_user_trails(user_id, ids)
         progress_map: Dict[int, Dict[str, Any]] = {}
 
         for trail_id in ids:
@@ -243,6 +248,16 @@ class UserTrailsRepository:
                     row.completed_at.isoformat() if row and row.completed_at else None
                 ),
             }
+
+            cert = cert_map.get(trail_id)
+            if cert:
+                progress_map[trail_id]["certificate"] = {
+                    "hash": cert.certificate_hash,
+                    "credential_id": cert.credential_id,
+                    "issued_at": cert.issued_at.isoformat()
+                    if cert.issued_at
+                    else None,
+                }
 
         return progress_map
 

@@ -14,6 +14,12 @@ from app.services.security import get_current_user_id
 bp = Blueprint("user_trails", __name__, url_prefix="/user-trails")
 
 
+class CertificateSummary(BaseModel):
+    hash: str
+    credential_id: str
+    issued_at: Optional[str] = None
+
+
 class ProgressOut(BaseModel):
     done: int
     total: int
@@ -22,6 +28,7 @@ class ProgressOut(BaseModel):
     enrolledAt: Optional[str] = None
     status: Optional[str] = None
     completed_at: Optional[str] = None
+    certificate: Optional[CertificateSummary] = None
 
 
 class ItemProgressOut(BaseModel):
@@ -47,7 +54,11 @@ def get_progress(trail_id: int):
     if not data:
         total = repo.count_items_in_trail(trail_id)
         default = ProgressOut(
-            done=0, total=total, computed_progress_percent=0.0, nextAction="Começar"
+            done=0,
+            total=total,
+            computed_progress_percent=0.0,
+            nextAction="Começar",
+            certificate=None,
         )
         return jsonify(default.model_dump(mode="json"))
     return jsonify(ProgressOut(**data).model_dump(mode="json"))
@@ -90,6 +101,7 @@ def enroll_in_trail(trail_id: int):
         "enrolledAt": None,
         "status": "ENROLLED",
         "completed_at": None,
+        "certificate": None,
     }
     first_item_id = repo.get_first_trail_item_id(trail_id)
     return jsonify(
