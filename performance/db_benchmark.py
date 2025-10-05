@@ -114,31 +114,25 @@ def gather_sample_data(email: str, password: str) -> BenchmarkContext:
         form_item_id = None
 
         if trail_id is not None:
-            section_id = (
-                session.scalars(
-                    select(TrailSectionsORM.id)
-                    .where(TrailSectionsORM.trail_id == trail_id)
-                    .order_by(TrailSectionsORM.order_index, TrailSectionsORM.id)
-                    .limit(1)
-                ).first()
-            )
-            item_id = (
-                session.scalars(
-                    select(TrailItemsORM.id)
-                    .where(TrailItemsORM.trail_id == trail_id)
-                    .order_by(TrailItemsORM.order_index, TrailItemsORM.id)
-                    .limit(1)
-                ).first()
-            )
-            form_item_id = (
-                session.scalars(
-                    select(TrailItemsORM.id)
-                    .join(LkItemTypeORM, TrailItemsORM.type)
-                    .where(TrailItemsORM.trail_id == trail_id, LkItemTypeORM.code == "FORM")
-                    .order_by(TrailItemsORM.order_index, TrailItemsORM.id)
-                    .limit(1)
-                ).first()
-            )
+            section_id = session.scalars(
+                select(TrailSectionsORM.id)
+                .where(TrailSectionsORM.trail_id == trail_id)
+                .order_by(TrailSectionsORM.order_index, TrailSectionsORM.id)
+                .limit(1)
+            ).first()
+            item_id = session.scalars(
+                select(TrailItemsORM.id)
+                .where(TrailItemsORM.trail_id == trail_id)
+                .order_by(TrailItemsORM.order_index, TrailItemsORM.id)
+                .limit(1)
+            ).first()
+            form_item_id = session.scalars(
+                select(TrailItemsORM.id)
+                .join(LkItemTypeORM, TrailItemsORM.type)
+                .where(TrailItemsORM.trail_id == trail_id, LkItemTypeORM.code == "FORM")
+                .order_by(TrailItemsORM.order_index, TrailItemsORM.id)
+                .limit(1)
+            ).first()
 
             UserTrailsRepository(session).ensure_enrollment(user.user_id, trail_id)
 
@@ -158,7 +152,11 @@ def infer_size(value: Any) -> float:
     if value is None:
         return 0.0
     if isinstance(value, (list, tuple, set)):
-        if isinstance(value, tuple) and len(value) == 2 and isinstance(value[1], (int, float)):
+        if (
+            isinstance(value, tuple)
+            and len(value) == 2
+            and isinstance(value[1], (int, float))
+        ):
             return infer_size(value[0])
         return float(len(value))
     if isinstance(value, dict):
@@ -170,7 +168,9 @@ def infer_size(value: Any) -> float:
     return 1.0
 
 
-def run_case(case: BenchmarkCase, iterations: int, warmup: int, ctx: BenchmarkContext) -> BenchmarkResult:
+def run_case(
+    case: BenchmarkCase, iterations: int, warmup: int, ctx: BenchmarkContext
+) -> BenchmarkResult:
     durations: list[float] = []
     rows_processed = 0.0
     total_iterations = iterations + warmup
@@ -219,7 +219,9 @@ def create_cases() -> list[BenchmarkCase]:
         ),
         BenchmarkCase(
             name="TrailsRepository.list_all",
-            func=lambda session, ctx: TrailsRepository(session).list_all(offset=0, limit=10),
+            func=lambda session, ctx: TrailsRepository(session).list_all(
+                offset=0, limit=10
+            ),
         ),
         BenchmarkCase(
             name="TrailsRepository.get_trail",
@@ -228,7 +230,9 @@ def create_cases() -> list[BenchmarkCase]:
         ),
         BenchmarkCase(
             name="TrailsRepository.list_sections",
-            func=lambda session, ctx: TrailsRepository(session).list_sections(ctx.trail_id, offset=0, limit=10),
+            func=lambda session, ctx: TrailsRepository(session).list_sections(
+                ctx.trail_id, offset=0, limit=10
+            ),
             requires=("trail_id",),
         ),
         BenchmarkCase(
@@ -243,57 +247,79 @@ def create_cases() -> list[BenchmarkCase]:
         ),
         BenchmarkCase(
             name="TrailsRepository.list_sections_with_items",
-            func=lambda session, ctx: TrailsRepository(session).list_sections_with_items(ctx.trail_id),
+            func=lambda session, ctx: TrailsRepository(
+                session
+            ).list_sections_with_items(ctx.trail_id),
             requires=("trail_id",),
         ),
         BenchmarkCase(
             name="TrailsRepository.list_included_items",
-            func=lambda session, ctx: TrailsRepository(session).list_included_items(ctx.trail_id),
+            func=lambda session, ctx: TrailsRepository(session).list_included_items(
+                ctx.trail_id
+            ),
             requires=("trail_id",),
         ),
         BenchmarkCase(
             name="TrailsRepository.list_requirements",
-            func=lambda session, ctx: TrailsRepository(session).list_requirements(ctx.trail_id),
+            func=lambda session, ctx: TrailsRepository(session).list_requirements(
+                ctx.trail_id
+            ),
             requires=("trail_id",),
         ),
         BenchmarkCase(
             name="TrailsRepository.list_audience",
-            func=lambda session, ctx: TrailsRepository(session).list_audience(ctx.trail_id),
+            func=lambda session, ctx: TrailsRepository(session).list_audience(
+                ctx.trail_id
+            ),
             requires=("trail_id",),
         ),
         BenchmarkCase(
             name="UserTrailsRepository.count_items_in_trail",
-            func=lambda session, ctx: UserTrailsRepository(session).count_items_in_trail(ctx.trail_id),
+            func=lambda session, ctx: UserTrailsRepository(
+                session
+            ).count_items_in_trail(ctx.trail_id),
             requires=("trail_id",),
         ),
         BenchmarkCase(
             name="UserTrailsRepository.get_progress_for_user",
-            func=lambda session, ctx: UserTrailsRepository(session).get_progress_for_user(ctx.user_id, ctx.trail_id),
+            func=lambda session, ctx: UserTrailsRepository(
+                session
+            ).get_progress_for_user(ctx.user_id, ctx.trail_id),
             requires=("user_id", "trail_id"),
         ),
         BenchmarkCase(
             name="UserTrailsRepository.get_items_progress",
-            func=lambda session, ctx: UserTrailsRepository(session).get_items_progress(ctx.user_id, ctx.trail_id),
+            func=lambda session, ctx: UserTrailsRepository(session).get_items_progress(
+                ctx.user_id, ctx.trail_id
+            ),
             requires=("user_id", "trail_id"),
         ),
         BenchmarkCase(
             name="UserTrailsRepository.get_sections_progress",
-            func=lambda session, ctx: UserTrailsRepository(session).get_sections_progress(ctx.user_id, ctx.trail_id),
+            func=lambda session, ctx: UserTrailsRepository(
+                session
+            ).get_sections_progress(ctx.user_id, ctx.trail_id),
             requires=("user_id", "trail_id"),
         ),
         BenchmarkCase(
             name="UserTrailsRepository.get_progress_map_for_user",
-            func=lambda session, ctx: UserTrailsRepository(session).get_progress_map_for_user(ctx.user_id, [ctx.trail_id], sync=False),
+            func=lambda session, ctx: UserTrailsRepository(
+                session
+            ).get_progress_map_for_user(ctx.user_id, [ctx.trail_id], sync=False),
             requires=("user_id", "trail_id"),
         ),
         BenchmarkCase(
             name="UsersRepository.GetUserByEmail",
-            func=lambda session, ctx: UsersRepository(session).GetUserByEmail(ctx.email),
+            func=lambda session, ctx: UsersRepository(session).GetUserByEmail(
+                ctx.email
+            ),
             requires=("email",),
         ),
         BenchmarkCase(
             name="UsersRepository.GetUserByUsername",
-            func=lambda session, ctx: UsersRepository(session).GetUserByUsername(ctx.username),
+            func=lambda session, ctx: UsersRepository(session).GetUserByUsername(
+                ctx.username
+            ),
             requires=("username",),
         ),
         BenchmarkCase(
@@ -308,18 +334,24 @@ def create_cases() -> list[BenchmarkCase]:
         ),
         BenchmarkCase(
             name="UsersRepository.ExistsUsername",
-            func=lambda session, ctx: UsersRepository(session).ExistsUsername(ctx.username),
+            func=lambda session, ctx: UsersRepository(session).ExistsUsername(
+                ctx.username
+            ),
             requires=("username",),
         ),
         BenchmarkCase(
             name="UserTrailsRepository.ensure_enrollment",
-            func=lambda session, ctx: UserTrailsRepository(session).ensure_enrollment(ctx.user_id, ctx.trail_id),
+            func=lambda session, ctx: UserTrailsRepository(session).ensure_enrollment(
+                ctx.user_id, ctx.trail_id
+            ),
             requires=("user_id", "trail_id"),
             writes=True,
         ),
         BenchmarkCase(
             name="UserProgressRepository.upsert_item_progress",
-            func=lambda session, ctx: UserProgressRepository(session).upsert_item_progress(
+            func=lambda session, ctx: UserProgressRepository(
+                session
+            ).upsert_item_progress(
                 ctx.user_id,
                 ctx.item_id,
                 status_code="COMPLETED",
@@ -344,7 +376,9 @@ def print_results(results: list[BenchmarkResult]) -> None:
         print("No benchmarks executed.")
         return
 
-    header = f"{'Query':70} {'Ops/s':>12} {'Ops/m':>12} {'Rows/s':>12} {'Mean (ms)':>12}"
+    header = (
+        f"{'Query':70} {'Ops/s':>12} {'Ops/m':>12} {'Rows/s':>12} {'Mean (ms)':>12}"
+    )
     print(header)
     print("-" * len(header))
     for result in results:
@@ -371,15 +405,26 @@ def print_results(results: list[BenchmarkResult]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Benchmark repository query performance.")
-    parser.add_argument("--iterations", type=int, default=50, help="Number of measured iterations per query")
-    parser.add_argument("--warmup", type=int, default=5, help="Warm-up iterations per query")
+    parser = argparse.ArgumentParser(
+        description="Benchmark repository query performance."
+    )
+    parser.add_argument(
+        "--iterations",
+        type=int,
+        default=50,
+        help="Number of measured iterations per query",
+    )
+    parser.add_argument(
+        "--warmup", type=int, default=5, help="Warm-up iterations per query"
+    )
     parser.add_argument(
         "--include-writes",
         action="store_true",
         help="Include write-heavy benchmarks (may mutate the database).",
     )
-    parser.add_argument("--json", dest="json_path", help="Write raw results to the given JSON file")
+    parser.add_argument(
+        "--json", dest="json_path", help="Write raw results to the given JSON file"
+    )
     parser.add_argument(
         "--user-email",
         default=os.environ.get("PERF_BENCH_EMAIL", "perf-db@example.com"),

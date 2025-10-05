@@ -12,4 +12,3 @@ def build_app():
 
 
 app = build_app()
-
