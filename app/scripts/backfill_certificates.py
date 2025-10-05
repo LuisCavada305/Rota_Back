@@ -43,7 +43,9 @@ def main() -> None:
             processed += 1
 
         session.commit()
-        print(f"Certificados verificados/gerados para {processed} matrículas concluídas.")
+        print(
+            f"Certificados verificados/gerados para {processed} matrículas concluídas."
+        )
 
 
 if __name__ == "__main__":

@@ -254,9 +254,7 @@ class UserTrailsRepository:
                 progress_map[trail_id]["certificate"] = {
                     "hash": cert.certificate_hash,
                     "credential_id": cert.credential_id,
-                    "issued_at": cert.issued_at.isoformat()
-                    if cert.issued_at
-                    else None,
+                    "issued_at": cert.issued_at.isoformat() if cert.issued_at else None,
                 }
 
         return progress_map

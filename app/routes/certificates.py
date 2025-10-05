@@ -56,9 +56,7 @@ def get_certificate(certificate_hash: str):
     cert, user, trail = row
     verify_base = request.args.get("verify_base") or request.url_root
     verify_base = verify_base.rstrip("/")
-    verification_url = (
-        f"{verify_base}/certificados/?cert_hash={cert.certificate_hash}"
-    )
+    verification_url = f"{verify_base}/certificados/?cert_hash={cert.certificate_hash}"
 
     payload = CertificateResponse(
         trail_id=trail.id,
@@ -90,9 +88,7 @@ def get_certificate_for_my_trail(trail_id: int):
 
     verify_base = request.args.get("verify_base") or request.url_root
     verify_base = verify_base.rstrip("/")
-    verification_url = (
-        f"{verify_base}/certificados/?cert_hash={cert.certificate_hash}"
-    )
+    verification_url = f"{verify_base}/certificados/?cert_hash={cert.certificate_hash}"
 
     payload = CertificateResponse(
         trail_id=trail.id,

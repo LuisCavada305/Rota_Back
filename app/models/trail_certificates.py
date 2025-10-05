@@ -34,4 +34,3 @@ class TrailCertificates(Base):
     issued_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False
     )
-

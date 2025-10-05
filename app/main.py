@@ -48,7 +48,9 @@ def create_app() -> Flask:
                     "X-Requested-With",
                 ]
             )
-            response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+            response.headers["Access-Control-Allow-Methods"] = (
+                "GET,POST,PUT,DELETE,OPTIONS"
+            )
         return response
 
     @app.route("/certificates/me/trails/<int:trail_id>", methods=["OPTIONS"])
