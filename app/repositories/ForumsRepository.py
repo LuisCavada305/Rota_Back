@@ -47,11 +47,7 @@ class ForumsRepository:
 
     # --- bootstrap helpers -------------------------------------------------
     def ensure_general_forum(self) -> ForumORM:
-        forum = (
-            self.db.query(ForumORM)
-            .filter(ForumORM.is_general.is_(True))
-            .first()
-        )
+        forum = self.db.query(ForumORM).filter(ForumORM.is_general.is_(True)).first()
         if forum:
             return forum
 
@@ -230,11 +226,11 @@ class ForumsRepository:
         ]
         return payload, total
 
-    def get_topic_with_forum(self, topic_id: int) -> Optional[Tuple[ForumTopicORM, ForumStats]]:
+    def get_topic_with_forum(
+        self, topic_id: int
+    ) -> Optional[Tuple[ForumTopicORM, ForumStats]]:
         topic_row = (
-            self.db.query(ForumTopicORM)
-            .filter(ForumTopicORM.id == topic_id)
-            .first()
+            self.db.query(ForumTopicORM).filter(ForumTopicORM.id == topic_id).first()
         )
         if not topic_row:
             return None

@@ -114,7 +114,9 @@ class TopicDetail(BaseModel):
     @classmethod
     def from_stats(cls, topic_stats, forum_stats):
         topic = topic_stats.topic
-        author = ForumAuthor.from_user(topic_stats.author) if topic_stats.author else None
+        author = (
+            ForumAuthor.from_user(topic_stats.author) if topic_stats.author else None
+        )
         return cls(
             id=topic.id,
             forum=ForumSummary.from_stats(forum_stats),
@@ -319,7 +321,9 @@ def list_posts(topic_id: int):
     db.commit()
     return jsonify(
         {
-            "topic": TopicDetail.from_stats(topic_stats, forum_stats).model_dump(mode="json"),
+            "topic": TopicDetail.from_stats(topic_stats, forum_stats).model_dump(
+                mode="json"
+            ),
             "posts": payload,
             "pagination": _pagination_payload(page, page_size, total),
         }
@@ -359,7 +363,9 @@ def create_post(topic_id: int):
         jsonify(
             {
                 "post": PostOut.from_model(post, user).model_dump(mode="json"),
-                "topic": TopicDetail.from_stats(topic_stats, forum_stats).model_dump(mode="json"),
+                "topic": TopicDetail.from_stats(topic_stats, forum_stats).model_dump(
+                    mode="json"
+                ),
                 "forum": ForumSummary.from_stats(forum_stats).model_dump(mode="json"),
             }
         ),

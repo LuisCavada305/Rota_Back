@@ -29,9 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover - hints only
 
 class Forum(Base):
     __tablename__ = "forums"
-    __table_args__ = (
-        UniqueConstraint("trail_id", name="uq_forums_trail_id"),
-    )
+    __table_args__ = (UniqueConstraint("trail_id", name="uq_forums_trail_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
@@ -45,12 +43,13 @@ class Forum(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
-    trail: Mapped[Optional["Trails"]] = relationship(
-        back_populates="forums"
-    )
+    trail: Mapped[Optional["Trails"]] = relationship(back_populates="forums")
     topics: Mapped[List["ForumTopic"]] = relationship(
         back_populates="forum", cascade="all, delete-orphan"
     )
@@ -73,7 +72,10 @@ class ForumTopic(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
     forum: Mapped["Forum"] = relationship(back_populates="topics")
@@ -102,7 +104,10 @@ class ForumPost(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
     topic: Mapped["ForumTopic"] = relationship(back_populates="posts")
@@ -114,7 +119,9 @@ def make_trail_forum_slug(trail_id: int) -> str:
 
 
 @event.listens_for(Trails, "after_insert", propagate=True)
-def create_forum_for_trail(mapper, connection, trail) -> None:  # pragma: no cover - small glue
+def create_forum_for_trail(
+    mapper, connection, trail
+) -> None:  # pragma: no cover - small glue
     table = Forum.__table__
     slug_value = make_trail_forum_slug(trail.id)
     stmt = insert(table).values(
