@@ -99,6 +99,9 @@ class ForumPost(Base):
     author_id: Mapped[int] = mapped_column(
         ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
     )
+    parent_post_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("forum_posts.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -112,6 +115,12 @@ class ForumPost(Base):
 
     topic: Mapped["ForumTopic"] = relationship(back_populates="posts")
     author: Mapped[Optional["User"]] = relationship()
+    parent_post: Mapped[Optional["ForumPost"]] = relationship(
+        remote_side="ForumPost.id", back_populates="replies"
+    )
+    replies: Mapped[List["ForumPost"]] = relationship(
+        back_populates="parent_post", cascade="all, delete-orphan"
+    )
 
 
 def make_trail_forum_slug(trail_id: int) -> str:

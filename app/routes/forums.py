@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from flask import Blueprint, abort, jsonify, request
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, ValidationError, field_validator, Field
 
 from app.core.db import get_db
 from app.repositories.ForumsRepository import ForumsRepository
@@ -136,11 +136,14 @@ class PostOut(BaseModel):
     created_at: str
     updated_at: str
     author: Optional[ForumAuthor] = None
+    parent_post_id: Optional[int] = None
+    replies: list["PostOut"] = Field(default_factory=list)
 
     @classmethod
     def from_row(cls, row):
         post = row.post
         author = ForumAuthor.from_user(row.author) if row.author else None
+        replies = [cls.from_row(rep) for rep in row.replies]
         return cls(
             id=post.id,
             topic_id=post.topic_id,
@@ -148,6 +151,8 @@ class PostOut(BaseModel):
             created_at=_isoformat(post.created_at) or "",
             updated_at=_isoformat(post.updated_at) or "",
             author=author,
+            parent_post_id=post.parent_post_id,
+            replies=replies,
         )
 
     @classmethod
@@ -159,6 +164,8 @@ class PostOut(BaseModel):
             created_at=_isoformat(post.created_at) or "",
             updated_at=_isoformat(post.updated_at) or "",
             author=ForumAuthor.from_user(author) if author else None,
+            parent_post_id=post.parent_post_id,
+            replies=[],
         )
 
 
@@ -185,6 +192,7 @@ class CreateTopicIn(BaseModel):
 
 class CreatePostIn(BaseModel):
     content: str
+    parent_post_id: Optional[int] = None
 
     @field_validator("content")
     @classmethod
@@ -193,6 +201,9 @@ class CreatePostIn(BaseModel):
         if not cleaned:
             raise ValueError("A mensagem é obrigatória")
         return cleaned
+
+
+PostOut.model_rebuild()
 
 
 def _pagination_payload(page: int, page_size: int, total: int) -> dict:
@@ -345,11 +356,17 @@ def create_post(topic_id: int):
 
     enforce_csrf()
     user = get_current_user()
-    post = repo.create_post(
-        topic_id=topic_id,
-        content=payload.content,
-        author_id=user.user_id,
-    )
+    try:
+        post = repo.create_post(
+            topic_id=topic_id,
+            content=payload.content,
+            author_id=user.user_id,
+            parent_post_id=payload.parent_post_id,
+        )
+    except ValueError as exc:
+        if str(exc) == "parent_post_not_found":
+            abort(400, description="Postagem resposta inválida")
+        raise
     topic_stats = repo.get_topic_stats(topic_id)
     if not topic_stats:
         db.rollback()

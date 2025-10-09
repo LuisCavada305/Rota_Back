@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -39,6 +39,7 @@ class TopicStats:
 class PostWithAuthor:
     post: ForumPostORM
     author: Optional[UserORM]
+    replies: List["PostWithAuthor"]
 
 
 class ForumsRepository:
@@ -282,12 +283,28 @@ class ForumsRepository:
         )
         total = query.count()
         rows = (
-            query.order_by(ForumPostORM.created_at.asc())
+            query.order_by(ForumPostORM.created_at.asc(), ForumPostORM.id.asc())
             .offset(offset)
             .limit(limit)
             .all()
         )
-        return [PostWithAuthor(post=row[0], author=row[1]) for row in rows], total
+
+        by_id: Dict[int, PostWithAuthor] = {}
+        roots: List[PostWithAuthor] = []
+
+        for post, author in rows:
+            node = PostWithAuthor(post=post, author=author, replies=[])
+            by_id[post.id] = node
+
+        for post, _author in rows:
+            node = by_id[post.id]
+            if post.parent_post_id and post.parent_post_id in by_id:
+                parent = by_id[post.parent_post_id]
+                parent.replies.append(node)
+            else:
+                roots.append(node)
+
+        return roots, total
 
     # --- mutations --------------------------------------------------------
     def create_topic(
@@ -317,11 +334,28 @@ class ForumsRepository:
         return topic
 
     def create_post(
-        self, *, topic_id: int, content: str, author_id: Optional[int]
+        self,
+        *,
+        topic_id: int,
+        content: str,
+        author_id: Optional[int],
+        parent_post_id: Optional[int] = None,
     ) -> ForumPostORM:
+        if parent_post_id is not None:
+            parent = (
+                self.db.query(ForumPostORM)
+                .filter(
+                    ForumPostORM.id == parent_post_id,
+                    ForumPostORM.topic_id == topic_id,
+                )
+                .first()
+            )
+            if not parent:
+                raise ValueError("parent_post_not_found")
         post = ForumPostORM(
             topic_id=topic_id,
             author_id=author_id,
+            parent_post_id=parent_post_id,
             content=content,
         )
         self.db.add(post)
