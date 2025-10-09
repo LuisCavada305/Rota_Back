@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from .trail_included_items import TrailIncludedItems
     from .trail_requirements import TrailRequirements
     from .trail_target_audience import TrailTargetAudience
+    from .forums import Forum
 
 
 class Trails(Base):
@@ -38,5 +39,8 @@ class Trails(Base):
         back_populates="trail", cascade="all, delete-orphan"
     )
     target_audience: Mapped[List["TrailTargetAudience"]] = relationship(
+        back_populates="trail", cascade="all, delete-orphan"
+    )
+    forums: Mapped[List["Forum"]] = relationship(
         back_populates="trail", cascade="all, delete-orphan"
     )

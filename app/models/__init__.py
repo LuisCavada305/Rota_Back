@@ -19,6 +19,7 @@ from .trail_included_items import TrailIncludedItems  # noqa: F401
 from .trail_requirements import TrailRequirements  # noqa: F401
 from .trail_target_audience import TrailTargetAudience  # noqa: F401
 from .trail_certificates import TrailCertificates  # noqa: F401
+from .forums import Forum, ForumTopic, ForumPost  # noqa: F401
 
 # Progress / enrollment models
 from .user_trails import UserTrails  # noqa: F401
