@@ -6,3 +6,4 @@ certs/
 *.pem
 results.json
 metric.json
+db_results.json

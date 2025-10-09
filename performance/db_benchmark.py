@@ -7,6 +7,8 @@ import argparse
 import json
 import math
 import os
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from statistics import mean
 from time import perf_counter
@@ -14,6 +16,10 @@ from typing import Any, Callable, Iterable, Optional
 
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from app.core.db import session_scope
 from app.models.lk_enrollment_status import LkEnrollmentStatus as LkEnrollmentStatusORM
