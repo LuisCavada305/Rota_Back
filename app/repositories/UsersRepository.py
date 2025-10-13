@@ -125,3 +125,10 @@ class UsersRepository:
         self.db.refresh(user)
         self.db.refresh(user, attribute_names=["sex"])
         return user
+
+    def UpdatePassword(self, user: User, new_password_hash: str) -> User:
+        user.password_hash = new_password_hash
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user

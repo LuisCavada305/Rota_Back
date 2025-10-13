@@ -3,6 +3,7 @@ import uuid
 from http.cookies import SimpleCookie
 from sqlalchemy import text, select
 from app.models.users import User
+from app.services.security import sign_password_reset_token
 import pytest
 from app.models.roles import RolesEnum
 
@@ -279,3 +280,92 @@ def test_register_conflict_on_duplicate_username(client, db_session):
     assert r1.status_code == 200, r1.get_data(as_text=True)
     r2 = client.post("/auth/register", json=payload2)
     assert r2.status_code == 409, r2.get_data(as_text=True)
+
+
+def test_forgot_password_is_silent_for_unknown_email(client):
+    r = client.post(
+        "/auth/forgot-password",
+        json={"email": unique_email("unknown")},
+    )
+    assert r.status_code == 200
+    assert r.get_json()["ok"] is True
+
+
+def test_forgot_password_triggers_email_for_existing_user(client, db_session, monkeypatch):
+    email = "reset_sends@example.com"
+    wipe_user(db_session, email)
+
+    payload = {
+        "email": email,
+        "password": "pass123",
+        "name_for_certificate": "Reset User",
+        "sex": "NotSpecified",
+        "birthday": "2000-01-01",
+        "username": "resetuser",
+        "social_name": "Reset User",
+        "role": "User",
+    }
+    reg = client.post("/auth/register", json=payload)
+    assert reg.status_code == 200
+
+    sent = {}
+
+    def fake_send(user, token):
+        sent["email"] = user.email
+        sent["token"] = token
+
+    monkeypatch.setattr("app.routes.auth.send_password_reset_email", fake_send)
+
+    r = client.post("/auth/forgot-password", json={"email": email})
+    assert r.status_code == 200
+    assert sent["email"] == email
+    assert isinstance(sent["token"], str) and sent["token"]
+
+
+def test_reset_password_flow(client, db_session):
+    email = "reset_flow@example.com"
+    wipe_user(db_session, email)
+
+    payload = {
+        "email": email,
+        "password": "oldpass",
+        "name_for_certificate": "Reset Flow",
+        "sex": "NotSpecified",
+        "birthday": "2000-01-01",
+        "username": "resetflow",
+        "social_name": "Reset Flow",
+        "role": "User",
+    }
+    reg = client.post("/auth/register", json=payload)
+    assert reg.status_code == 200
+
+    user = db_session.execute(select(User).where(User.email == email)).scalar_one()
+    token = sign_password_reset_token(user.user_id)
+
+    r_reset = client.post(
+        "/auth/reset-password",
+        json={"token": token, "password": "newpass"},
+    )
+    assert r_reset.status_code == 200
+
+    # antigo deve falhar
+    r_old_login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "oldpass", "remember": False},
+    )
+    assert r_old_login.status_code == 401
+
+    # novo deve funcionar
+    r_new_login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "newpass", "remember": False},
+    )
+    assert r_new_login.status_code == 200
+
+
+def test_reset_password_rejects_invalid_token(client):
+    r = client.post(
+        "/auth/reset-password",
+        json={"token": "invalid", "password": "whatever"},
+    )
+    assert r.status_code == 400
