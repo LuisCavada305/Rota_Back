@@ -115,32 +115,13 @@ class LoginIn(BaseModel):
     remember: bool = False
 
 
-class UserOut(BaseModel):
-    user_id: int
+class ForgotPasswordIn(BaseModel):
     email: EmailStr
-    username: str
-    profile_pic_url: Optional[str] = None
-    banner_pic_url: Optional[str] = None
-    role: RolesEnum
-    sex: Sex
-
-    @classmethod
-    def from_orm_user(cls, u: "User") -> "UserOut":
-        return cls(
-            user_id=u.user_id,
-            email=u.email,
-            username=u.username,
-            profile_pic_url=u.profile_pic_url,
-            banner_pic_url=u.banner_pic_url,
-            role=RolesEnum(u.role_code),  # <-- da lookup
-            sex=Sex(u.sex_code),  # <-- da lookup
-        )
 
 
-class LoginIn(BaseModel):
-    email: EmailStr
+class ResetPasswordIn(BaseModel):
+    token: str
     password: str
-    remember: bool = False
 
 
 class UserOut(BaseModel):
