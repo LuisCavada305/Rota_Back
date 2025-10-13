@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError, field_validator, Field
 from app.core.db import get_db
 from app.repositories.ForumsRepository import ForumsRepository
 from app.services.security import enforce_csrf, get_current_user
+from app.services.sanitizer import sanitize_user_html
 
 
 bp = Blueprint("forums", __name__, url_prefix="/forums")
@@ -184,7 +185,7 @@ class CreateTopicIn(BaseModel):
     @field_validator("content")
     @classmethod
     def _strip_content(cls, value: str) -> str:
-        cleaned = (value or "").strip()
+        cleaned = sanitize_user_html(value or "")
         if not cleaned:
             raise ValueError("A mensagem é obrigatória")
         return cleaned
@@ -197,7 +198,7 @@ class CreatePostIn(BaseModel):
     @field_validator("content")
     @classmethod
     def _strip_content(cls, value: str) -> str:
-        cleaned = (value or "").strip()
+        cleaned = sanitize_user_html(value or "")
         if not cleaned:
             raise ValueError("A mensagem é obrigatória")
         return cleaned

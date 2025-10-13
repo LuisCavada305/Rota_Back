@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from flask import Blueprint, jsonify, request, abort
 from pydantic import ValidationError
 
@@ -16,9 +18,34 @@ from app.services.security import (
     clear_csrf_cookie,
 )
 from app.repositories.UsersRepository import UsersRepository
+from app.services.rate_limiter import check_auth_rate_limit
 
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
+
+
+def _client_identifier() -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    ip = forwarded_for.split(",", 1)[0].strip() if forwarded_for else ""
+    if not ip:
+        ip = request.remote_addr or "unknown"
+    return ip
+
+
+def _rate_limited_response(scope: str, *, identifier: str | None = None):
+    parts = [scope]
+    if identifier:
+        parts.append(identifier.lower())
+    parts.append(_client_identifier())
+    retry_after = check_auth_rate_limit(":".join(parts))
+    if retry_after is None:
+        return None
+    wait_seconds = max(1, math.ceil(retry_after))
+    payload = {"detail": "Muitas tentativas. Aguarde antes de tentar novamente."}
+    response = jsonify(payload)
+    response.status_code = 429
+    response.headers["Retry-After"] = str(wait_seconds)
+    return response
 
 
 def _validate_payload(model_cls):
@@ -33,13 +60,17 @@ def register():
     except ValidationError as exc:
         return jsonify({"detail": exc.errors()}), 422
 
+    limited = _rate_limited_response(
+        "register", identifier=f"{payload.email}:{payload.username}"
+    )
+    if limited:
+        return limited
+
     db = get_db()
     repo = UsersRepository(db)
 
-    if repo.ExistsEmail(payload.email):
-        abort(409, description="Email já cadastrado")
-    if repo.ExistsUsername(payload.username):
-        abort(409, description="Username já cadastrado")
+    if repo.ExistsEmail(payload.email) or repo.ExistsUsername(payload.username):
+        abort(409, description="Dados já cadastrados")
 
     user = repo.CreateUser(
         email=payload.email,
@@ -76,6 +107,10 @@ def login():
         payload: LoginIn = _validate_payload(LoginIn)
     except ValidationError as exc:
         return jsonify({"detail": exc.errors()}), 422
+
+    limited = _rate_limited_response("login", identifier=payload.email)
+    if limited:
+        return limited
 
     db = get_db()
     repo = UsersRepository(db)

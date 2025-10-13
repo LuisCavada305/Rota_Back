@@ -79,8 +79,13 @@ def clear_session_cookie(res: Response):
     )
 
 
+def _csrf_secret() -> bytes:
+    secret = settings.CSRF_SECRET or settings.JWT_SECRET
+    return secret.encode("utf-8")
+
+
 def _sign_csrf_payload(payload: str) -> str:
-    secret = settings.JWT_SECRET.encode("utf-8")
+    secret = _csrf_secret()
     return hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
 

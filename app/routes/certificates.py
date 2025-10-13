@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import io
 from datetime import datetime
+from functools import lru_cache
 
 from flask import Blueprint, jsonify, abort, request
 from pydantic import BaseModel
@@ -26,12 +27,17 @@ def _format_datetime(dt: datetime | None) -> str | None:
     return dt.isoformat()
 
 
-def _qr_data_uri(payload: str) -> str:
+@lru_cache(maxsize=256)
+def _cached_qr_data_uri(payload: str) -> str:
     qr = segno.make(payload, error="m")
     buf = io.BytesIO()
     qr.save(buf, kind="png", scale=6)
     encoded = base64.b64encode(buf.getvalue()).decode("ascii")
     return f"data:image/png;base64,{encoded}"
+
+
+def _qr_data_uri(payload: str) -> str:
+    return _cached_qr_data_uri(payload)
 
 
 class CertificateResponse(BaseModel):

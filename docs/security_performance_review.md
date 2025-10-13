@@ -1,35 +1,73 @@
-# Avaliação de Segurança e Performance
+# Avaliação de Segurança, Performance e Dimensionamento do Banco
 
-## Segurança (Nota 8/10)
+## Segurança (Nota 8.5/10)
 
-### Pontos Positivos
-- **Hashing de senhas com bcrypt:** garante que credenciais comprometidas não sejam armazenadas em texto puro, reduzindo o impacto em caso de vazamento de banco de dados.
-- **JWT com expiração curta:** tokens possuem validade limitada, o que diminui a janela de uso indevido caso um token seja interceptado.
-- **Cookies `HttpOnly` e `Secure`:** o token de autenticação é enviado ao cliente em um cookie inacessível via JavaScript e apenas por HTTPS, bloqueando ataques básicos de XSS e sniffing.
-- **Proteção dupla contra CSRF:** cada login/registro emite um token assinado armazenado em cookie dedicado e validado em cabeçalho nos endpoints mutáveis, blindando a aplicação contra requisições forjadas.
+### Pontos positivos
+- **Senhas com bcrypt e sessões assinadas:** o serviço usa `passlib.hash.bcrypt` para armazenar senhas e assina tokens JWT com expiração, reduzindo o impacto de vazamentos do banco ou interceptação de cookies.【F:app/services/security.py†L8-L52】
+- **Cookies protegidos e verificação dupla de CSRF:** o cookie de sessão é marcado como `HttpOnly` e só fica `Secure` fora do ambiente de desenvolvimento, enquanto mutações exigem o token CSRF igualado entre cookie e cabeçalho, evitando requisições forjadas básicas.【F:app/services/security.py†L31-L91】【F:app/services/security.py†L99-L141】
+- **Validações com Pydantic em rotas sensíveis:** fluxos como autenticação, fóruns e formulários validam payloads com modelos tipados antes de prosseguir, reduzindo risco de dados inesperados chegarem à camada de ORM.【F:app/routes/auth.py†L27-L86】【F:app/routes/forums.py†L55-L149】【F:app/routes/trail_items.py†L28-L179】
 
-### Pontos Negativos
-- **Tokens de sessão ainda dependem de segredo único:** embora a assinatura HMAC proteja o token, o segredo global permanece ponto único de falha.
-- **Validações de entrada limitadas em payloads legados:** alguns fluxos antigos continuam aceitando campos livres sem validação rigorosa, abrindo espaço para comportamentos inesperados caso sejam expostos.
+### Pontos de atenção
+- **Rate limiting ainda volátil:** o bloqueio por IP vive em memória do processo; um pool com múltiplos workers/instâncias pode burlar o limite sem uma store centralizada.【F:app/services/rate_limiter.py†L8-L47】
+- **Rotação e segregação de segredos:** apesar da chave CSRF dedicada, ainda não há política definida para renovação periódica ou armazenamento seguro (cofre) das chaves de aplicação.【F:app/services/security.py†L53-L66】
+- **Superfícies adicionais sem sanitização:** descrições de trilhas, respostas de formulários e outros campos textuais continuam dependentes do front-end para escapar HTML.【F:app/routes/trail_items.py†L180-L334】
+- **Ausência de MFA/refresh tokens curtos:** a plataforma ainda depende de um único cookie JWT de longa duração sem mecanismos extras de revogação ou autenticação forte.【F:app/services/security.py†L37-L91】
 
-### Recomendações de Melhoria
-- Rotacionar periodicamente o segredo JWT/CSRF e armazená-lo em cofre seguro para reduzir impacto de vazamentos.
-- Reforçar validações de entrada com esquemas (p.ex. Pydantic) para garantir formatos esperados e bloquear dados maliciosos remanescentes.
-- Auditar fluxos de autorização buscando privilégios excessivos ou respostas informativas demais em erros.
+### Recomendações prioritárias
+1. Persistir e compartilhar métricas de rate limiting (Redis/Memcached) entre instâncias para manter proteção sob escala horizontal.【F:app/services/rate_limiter.py†L8-L47】
+2. Definir processo de rotação periódica para `JWT_SECRET` e `CSRF_SECRET` (ex.: semestral) e centralizar armazenamento em cofre (AWS Secrets Manager, HashiCorp Vault).【F:app/services/security.py†L53-L66】
+3. Estender sanitização para demais superfícies de entrada textual (respostas de formulários, descrições de itens) ou garantir saída escapeada em todos os clientes.【F:app/services/sanitizer.py†L1-L35】【F:app/routes/trail_items.py†L180-L334】
+
+### Recomendações adicionais
+- Implementar logs estruturados e alertas para tentativas excessivas de login e respostas 4xx/5xx.
+- Avaliar short-lived refresh tokens ou lista de revogação para invalidar sessões comprometidas.
+- Documentar política de complexidade de senha e monitorar dependências de segurança (ex.: `passlib`).
 
 ## Performance (Nota 8/10)
 
-### Pontos Positivos
-- **Paginação nos endpoints de trilhas e seções:** limita o volume de dados retornados em cada requisição, reduzindo tráfego e latência.
-- **Paginação por itens de seção:** endpoints que retornam conteúdos extensos agora respeitam limites configuráveis por página, evitando explosão de carga em seções muito grandes.
-- **Uso de `selectinload`/`joinedload`:** evita o problema de N+1 consultas em carregamento de relacionamentos, melhorando a eficiência no banco de dados.
-- **Persistência leve em repositórios:** consultas utilizam filtros diretos sem lógica de negócios desnecessária, diminuindo overhead na camada de aplicação.
+### Pontos positivos
+- **Paginação em listagens volumosas:** rotas de trilhas, seções, itens e fóruns limitam o número de registros retornados, mitigando respostas gigantes e uso de memória no servidor.【F:app/routes/trails.py†L75-L138】【F:app/routes/trails.py†L150-L193】【F:app/routes/forums.py†L160-L236】
+- **Uso de carregamento seletivo no ORM:** `selectinload`, `joinedload` e `load_only` aparecem em consultas críticas, reduzindo N+1 e tráfego de dados desnecessários.【F:app/routes/me.py†L27-L56】【F:app/routes/trails.py†L17-L193】
+- **Regras de progressão otimizadas:** cálculos de progresso reaproveitam registros existentes e limitam saltos em vídeos, evitando reprocessamento pesado e garantindo consistência de dados mesmo sob carga.【F:app/routes/trails.py†L199-L333】
+- **QR Codes com cache LRU:** certificados reutilizam data URIs previamente gerados, amortizando custos de CPU/IO em acessos repetitivos.【F:app/routes/certificates.py†L1-L56】
 
-### Pontos Negativos
-- **Monitoramento limitado:** ainda não há métricas de observabilidade em produção, dificultando detectar gargalos antes que afetem usuários.
-- **Processamento síncrono pesado:** tarefas potencialmente demoradas (ex.: geração de relatórios ou uploads) seguem na thread principal, bloqueando o servidor.
+### Pontos de atenção
+- **Contagens agregadas frequentes nos fóruns:** múltiplos `COUNT` correlacionados por requisição podem degradar sob alto volume; índices específicos e cache curto podem ser necessários.【F:app/repositories/ForumsRepository.py†L54-L174】
+- **Cache de QR Codes ainda local:** o LRU vive em memória de cada worker; reinícios ou múltiplas instâncias perdem o benefício sem um backend compartilhado.【F:app/routes/certificates.py†L1-L56】
+- **Tarefas de escrita seguem síncronas:** atualizações de progresso, matrículas e submissões de formulários ocorrem na thread principal, sem filas/background para volumes grandes.【F:app/routes/trail_items.py†L212-L334】【F:app/routes/user_trails.py†L68-L115】
 
-### Recomendações de Melhoria
-- Instrumentar métricas de latência e throughput, incluindo logs estruturados, para direcionar otimizações futuras e detectar regressões.
-- Revisar e criar índices nas colunas mais consultadas, além de monitorar o banco com métricas de tempo de consulta e cache.
-- Avaliar uso de filas/worker assíncrono para tarefas pesadas e considerar caching em camadas quentes (por exemplo, Redis) para respostas repetidas.
+### Recomendações prioritárias
+1. Criar índices compostos (ex.: `forum_id, created_at`) e materializar contagens em tabelas auxiliares ou cache in-memory para aliviar `COUNT` correlacionado.
+2. Promover o cache de QR Codes para um backend compartilhado (Redis/CDN) e pré-geração via job assíncrono para certidões mais acessadas.【F:app/routes/certificates.py†L1-L56】
+3. Monitorar latência por endpoint (APM, Prometheus) para identificar gargalos reais e dimensionar horizontalmente conforme necessário.
+
+### Recomendações adicionais
+- Revisar planos de execução periodicamente (explain analyze) e ajustar limites de paginação máximos conforme comportamento real.
+- Avaliar compressão de payloads HTTP (gzip/br) para listas de itens/trilhas.
+- Desacoplar atualizações de progresso em lote usando worker/cron se o número de usuários simultâneos crescer.
+
+## Dimensionamento estimado do banco de dados
+
+### Premissas utilizadas
+- Plataforma com **5.000 alunos ativos**, cada um inscrito em média em **3 trilhas** com **40 itens** (vídeo/documento/formulário) e 5 sessões por trilha.
+- Uso de PostgreSQL com armazenamento em blocos de 8 kB e sobrecarga ~30% para índices/TOAST.
+- Campos textuais moderados (URLs, descrições curtas) e ausência de anexos binários no banco.
+
+### Estimativa de volume
+| Tabela | Linhas estimadas | Tamanho médio por linha | Espaço com índices |
+| --- | --- | --- | --- |
+| `users` | 5.000 | ~0,6 kB (dados + índices email/username) | **~4 MB** |
+| `user_trails` | 15.000 | ~0,35 kB (FK + timestamps + índice composto) | **~8 MB** |
+| `user_item_progress` | 200.000 | ~0,45 kB (FK + status + timestamps) | **~120 MB** |
+| `trail_items` + metadados (sections, requirements etc.) | 1.200 | ~1,0 kB | **~2 MB** |
+| Conteúdo de fóruns (`forum_topics`, `forum_posts`) | 50.000 | ~0,7 kB (conteúdo textual curto) | **~35 MB** |
+| Formulários e respostas (`form_submissions` + respostas) | 20.000 | ~0,6 kB | **~12 MB** |
+| **Total estimado** | — | — | **~181 MB** |
+
+Adicionando 30% de folga para crescimento orgânico, autovacuum, índices extras e WAL, o banco deve permanecer **abaixo de ~240 MB** nesse cenário.
+
+### O free tier é suficiente?
+- Free tiers comuns de PostgreSQL (Render, Supabase, Railway, ElephantSQL) oferecem entre **250 MB e 1 GB** de armazenamento. Com as premissas acima, o consumo estimado (~240 MB) **encosta no limite inferior**.
+- Explosões pontuais (ex.: picos de posts ou submissões) podem ultrapassar o teto rapidamente porque WAL/backups também contam para a cota. Além disso, free tiers limitam CPU/RAM e conexões, impactando a performance sob carga moderada.
+
+**Conclusão:** para um piloto pequeno (até ~3.000 usuários ou menor engajamento), o free tier pode aguentar temporariamente. No entanto, para 5.000 usuários ativos como no cenário acima, recomenda-se migrar para um plano básico pago (>=1 GB) antes do lançamento para evitar bloqueios por falta de espaço e garantir recursos de CPU/IO suficientes.
