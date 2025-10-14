@@ -16,7 +16,18 @@ class Settings(BaseSettings):
     COOKIE_NAME: str = Field(default="rota_session", env="COOKIE_NAME")
     CSRF_COOKIE_NAME: str = Field(default="rota_csrf", env="CSRF_COOKIE_NAME")
     ENV: str = Field(default="dev", env="ENV")
-    
+    smtp_host: str | None = Field(default=None, env="SMTP_HOST")
+    smtp_port: int = Field(default=587, env="SMTP_PORT")
+    smtp_user: str | None = Field(default=None, env="SMTP_USER")
+    smtp_password: str | None = Field(default=None, env="SMTP_PASSWORD")
+    smtp_starttls: bool = Field(default=True, env="SMTP_STARTTLS")
+    smtp_timeout: int = Field(default=20, env="SMTP_TIMEOUT")
+    smtp_from_name: str = Field(default="Equipe Rota", env="SMTP_FROM_NAME")
+    smtp_from_email: str | None = Field(default=None, env="SMTP_FROM_EMAIL")
+    app_base_url: str | None = Field(default=None, env="APP_BASE_URL")
+    password_reset_path: str = Field(default="/redefinir-senha", env="PASSWORD_RESET_PATH")
+    rota_brand_color: str = Field(default="#0A3D8F", env="ROTA_BRAND_COLOR")
+
     model_config = SettingsConfigDict(
         env_file=".env",              # troque para ".env.docker" se rodar no compose
         env_file_encoding="utf-8",
