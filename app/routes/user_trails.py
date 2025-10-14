@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List
 
 from flask import Blueprint, jsonify
 from pydantic import BaseModel
@@ -48,6 +48,67 @@ class SectionProgressOut(BaseModel):
     percent: float
 
 
+class TrailOverviewOut(BaseModel):
+    trail_id: int
+    name: str
+    thumbnail_url: str
+    author: Optional[str] = None
+    status: Optional[str] = None
+    progress: ProgressOut
+
+
+class OverviewOut(BaseModel):
+    summary: dict
+    trails: List[TrailOverviewOut]
+
+
+@bp.get("/me/overview")
+def get_user_overview():
+    user_id = get_current_user_id()
+    db = get_db()
+    repo = UserTrailsRepository(db)
+    trails_raw = repo.get_overview_for_user(user_id)
+
+    enrolled_total = len(trails_raw)
+    completed_total = 0
+    active_total = 0
+    trails_out: List[TrailOverviewOut] = []
+
+    for item in trails_raw:
+        progress_data = item.get("progress") or {}
+        raw_status = progress_data.get("status") or item.get("status") or ""
+        status_upper = raw_status.upper()
+
+        progress_model = ProgressOut(**progress_data)
+        if status_upper == "COMPLETED":
+            completed_total += 1
+        else:
+            active_total += 1
+
+        trails_out.append(
+            TrailOverviewOut(
+                trail_id=item["trail_id"],
+                name=item["name"],
+                thumbnail_url=item["thumbnail_url"],
+                author=item.get("author"),
+                status=progress_model.status or raw_status or None,
+                progress=progress_model,
+            )
+        )
+
+    summary = {
+        "enrolled": enrolled_total,
+        "active": active_total,
+        "completed": completed_total,
+    }
+
+    payload = OverviewOut(
+        summary=summary,
+        trails=trails_out,
+    )
+    return jsonify(payload.model_dump(mode="json"))
+
+
 @bp.get("/<int:trail_id>/progress")
 def get_progress(trail_id: int):
     db = get_db()
@@ -71,7 +132,18 @@ def get_items_progress(trail_id: int):
     user_id = get_current_user_id()
     db = get_db()
     repo = UserTrailsRepository(db)
-    repo.ensure_enrollment(user_id, trail_id)
+    enrollment, _ = repo.ensure_enrollment(
+        user_id, trail_id, create_if_missing=False
+    )
+    if enrollment is None:
+        return (
+            jsonify(
+                {
+                    "detail": "Você precisa se inscrever na trilha antes de acessar o progresso."
+                }
+            ),
+            403,
+        )
     items = repo.get_items_progress(user_id, trail_id)
     return jsonify([ItemProgressOut(**item).model_dump(mode="json") for item in items])
 
@@ -81,7 +153,18 @@ def get_sections_progress(trail_id: int):
     user_id = get_current_user_id()
     db = get_db()
     repo = UserTrailsRepository(db)
-    repo.ensure_enrollment(user_id, trail_id)
+    enrollment, _ = repo.ensure_enrollment(
+        user_id, trail_id, create_if_missing=False
+    )
+    if enrollment is None:
+        return (
+            jsonify(
+                {
+                    "detail": "Você precisa se inscrever na trilha antes de acessar o progresso."
+                }
+            ),
+            403,
+        )
     sections = repo.get_sections_progress(user_id, trail_id)
     return jsonify(
         [SectionProgressOut(**section).model_dump(mode="json") for section in sections]

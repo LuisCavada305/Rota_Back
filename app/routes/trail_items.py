@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Dict, Literal, Optional
+from typing import Dict, Literal, Optional, Tuple
+from urllib.parse import urlparse
+import os
 
 from flask import Blueprint, abort, jsonify, request
 from pydantic import BaseModel, ValidationError, field_validator
@@ -27,6 +29,7 @@ bp = Blueprint("trail_items", __name__, url_prefix="/trails")
 
 
 QuestionKind = Literal["ESSAY", "TRUE_OR_FALSE", "SINGLE_CHOICE", "UNKNOWN"]
+ResourceKind = Literal["PDF", "IMAGE", "OTHER"]
 
 
 class FormOptionOut(BaseModel):
@@ -68,6 +71,8 @@ class TrailItemDetailOut(BaseModel):
     next_item_id: Optional[int] = None
     form: Optional[FormOut] = None
     requires_completion: bool = False
+    resource_url: Optional[str] = None
+    resource_kind: Optional[ResourceKind] = None
 
 
 class FormAnswerIn(BaseModel):
@@ -128,6 +133,22 @@ def _option_is_correct(option: FormQuestionOptionORM) -> Optional[bool]:
     if option.is_correct_yn is not None:
         return option.is_correct_yn.upper() == "Y"
     return None
+
+
+def _classify_resource(url: str) -> Tuple[Optional[str], Optional[ResourceKind]]:
+    cleaned = (url or "").strip()
+    if not cleaned:
+        return None, None
+
+    parsed = urlparse(cleaned)
+    path = parsed.path or ""
+    _, ext = os.path.splitext(path.lower())
+
+    if ext == ".pdf":
+        return cleaned, "PDF"
+    if ext in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"}:
+        return cleaned, "IMAGE"
+    return cleaned, "OTHER"
 
 
 def _question_is_required(question: FormQuestionORM) -> bool:
@@ -267,6 +288,8 @@ def get_item_detail(trail_id: int, item_id: int):
     prev_id, next_id = _compute_prev_next(db, item)
 
     description_html = ""
+    resource_url: Optional[str] = None
+    resource_kind: Optional[ResourceKind] = None
     form_payload: Optional[FormOut] = None
 
     if item_type == "FORM":
@@ -306,6 +329,8 @@ def get_item_detail(trail_id: int, item_id: int):
             questions=questions_out,
         )
         description_html = form.description or ""
+    elif item_type == "DOC":
+        resource_url, resource_kind = _classify_resource(item.url or "")
 
     data = TrailItemDetailOut(
         id=item.id,
@@ -321,6 +346,8 @@ def get_item_detail(trail_id: int, item_id: int):
         next_item_id=next_id,
         form=form_payload,
         requires_completion=item.completion_required(),
+        resource_url=resource_url,
+        resource_kind=resource_kind,
     ).model_dump(mode="json")
     return jsonify(data)
 

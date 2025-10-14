@@ -34,6 +34,7 @@ def _build_reset_url(token: str) -> str:
 
 def _render_email_html(title: str, body: str, *, action_url: str | None = None, action_label: str | None = None) -> str:
     brand_color = _brand_color()
+    background_color = "#f3f4f6"
     button_html = ""
     if action_url and action_label:
         button_html = f"""
@@ -46,8 +47,8 @@ def _render_email_html(title: str, body: str, *, action_url: str | None = None, 
 
     return f"""
     <html>
-        <body style=\"margin:0;padding:0;background-color:{brand_color};\">
-            <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\" style=\"background-color:{brand_color};padding:24px 12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;\">
+        <body style=\"margin:0;padding:0;background-color:{background_color};\">
+            <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\" style=\"background-color:{background_color};padding:24px 12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;\">
                 <tr>
                     <td align=\"center\">
                         <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\" style=\"max-width:600px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(10,61,143,0.25);\">

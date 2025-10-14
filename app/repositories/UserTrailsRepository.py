@@ -8,6 +8,7 @@ from app.models.trail_items import TrailItems as TrailItemsORM
 from app.models.trail_sections import TrailSections as TrailSectionsORM
 from app.models.lk_progress_status import LkProgressStatus as LkProgressStatusORM
 from app.models.lk_enrollment_status import LkEnrollmentStatus as LkEnrollmentStatusORM
+from app.models.trails import Trails as TrailsORM
 
 from app.services.security import get_current_user_id
 from app.repositories.CertificatesRepository import CertificatesRepository
@@ -43,7 +44,7 @@ class UserTrailsRepository:
         user_id = get_current_user_id()
         if not user_id:
             return None
-        self.ensure_enrollment(user_id, trail_id)
+        self.ensure_enrollment(user_id, trail_id, create_if_missing=False)
         return self.get_progress_for_user(user_id, trail_id)
 
     def get_progress_for_user(
@@ -52,7 +53,9 @@ class UserTrailsRepository:
         progress_map = self.get_progress_map_for_user(user_id, [trail_id], sync=True)
         return progress_map.get(trail_id)
 
-    def ensure_enrollment(self, user_id: int, trail_id: int) -> tuple[UserTrailsORM, bool]:
+    def ensure_enrollment(
+        self, user_id: int, trail_id: int, *, create_if_missing: bool = True
+    ) -> tuple[Optional[UserTrailsORM], bool]:
         ut = (
             self.db.query(UserTrailsORM)
             .filter(
@@ -62,6 +65,8 @@ class UserTrailsRepository:
         )
         created = False
         if not ut:
+            if not create_if_missing:
+                return None, False
             status_id = self._enrollment_status_id("ENROLLED")
             ut = UserTrailsORM(
                 user_id=user_id,
@@ -260,6 +265,56 @@ class UserTrailsRepository:
                 }
 
         return progress_map
+
+    def get_overview_for_user(self, user_id: int) -> List[Dict[str, Any]]:
+        rows = (
+            self.db.query(
+                UserTrailsORM.trail_id,
+                TrailsORM.name,
+                TrailsORM.thumbnail_url,
+                TrailsORM.author,
+                LkEnrollmentStatusORM.code.label("status_code"),
+            )
+            .join(TrailsORM, TrailsORM.id == UserTrailsORM.trail_id)
+            .outerjoin(
+                LkEnrollmentStatusORM,
+                LkEnrollmentStatusORM.id == UserTrailsORM.status_id,
+            )
+            .filter(UserTrailsORM.user_id == user_id)
+            .all()
+        )
+
+        trail_ids = [row.trail_id for row in rows]
+        progress_map = self.get_progress_map_for_user(
+            user_id, trail_ids, sync=True
+        ) if trail_ids else {}
+
+        overview: List[Dict[str, Any]] = []
+        for row in rows:
+            progress = progress_map.get(
+                row.trail_id,
+                {
+                    "done": 0,
+                    "total": 0,
+                    "computed_progress_percent": 0.0,
+                    "nextAction": "Começar",
+                    "enrolledAt": None,
+                    "status": row.status_code,
+                    "completed_at": None,
+                    "certificate": None,
+                },
+            )
+            overview.append(
+                {
+                    "trail_id": row.trail_id,
+                    "name": row.name,
+                    "thumbnail_url": row.thumbnail_url,
+                    "author": row.author,
+                    "status": progress.get("status") or row.status_code,
+                    "progress": progress,
+                }
+            )
+        return overview
 
     def find_blocking_item(
         self, user_id: int, trail_id: int, target_item_id: int
