@@ -32,7 +32,13 @@ def _build_reset_url(token: str) -> str:
     return f"{url}{separator}token={token}"
 
 
-def _render_email_html(title: str, body: str, *, action_url: str | None = None, action_label: str | None = None) -> str:
+def _render_email_html(
+    title: str,
+    body: str,
+    *,
+    action_url: str | None = None,
+    action_label: str | None = None,
+) -> str:
     brand_color = _brand_color()
     background_color = "#f3f4f6"
     button_html = ""
@@ -76,7 +82,13 @@ def _render_email_html(title: str, body: str, *, action_url: str | None = None, 
     """
 
 
-def _render_email_text(title: str, body: str, *, action_url: str | None = None, action_label: str | None = None) -> str:
+def _render_email_text(
+    title: str,
+    body: str,
+    *,
+    action_url: str | None = None,
+    action_label: str | None = None,
+) -> str:
     text = f"{title}\n\n{body}"
     if action_url and action_label:
         text += f"\n\n{action_label}: {action_url}"
@@ -88,7 +100,9 @@ def _ensure_recipients(addresses: Iterable[str]) -> list[str]:
     return [addr for addr in addresses if addr]
 
 
-def send_email(*, subject: str, to: Iterable[str], html_body: str, text_body: str | None = None) -> bool:
+def send_email(
+    *, subject: str, to: Iterable[str], html_body: str, text_body: str | None = None
+) -> bool:
     recipients = _ensure_recipients(to)
     if not recipients:
         logger.warning("Nenhum destinatário informado para email '%s'", subject)
@@ -114,15 +128,15 @@ def send_email(*, subject: str, to: Iterable[str], html_body: str, text_body: st
     message.add_alternative(html_body, subtype="html")
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=settings.smtp_timeout) as server:
+        with smtplib.SMTP(
+            settings.smtp_host, settings.smtp_port, timeout=settings.smtp_timeout
+        ) as server:
             if settings.smtp_starttls:
                 server.starttls()
             if settings.smtp_user:
                 server.login(settings.smtp_user, settings.smtp_password or "")
             server.send_message(message)
-            logger.info(
-                "Email '%s' enviado para %s", subject, ", ".join(recipients)
-            )
+            logger.info("Email '%s' enviado para %s", subject, ", ".join(recipients))
             return True
     except Exception as exc:  # pragma: no cover - dependent on external SMTP
         logger.exception("Falha ao enviar email '%s': %s", subject, exc)
@@ -134,9 +148,7 @@ def send_welcome_email(*, email: str, name: str | None = None):
     body = ""
     if display_name:
         body += f"Olá, {display_name}! "
-    body += (
-        "Sua conta na plataforma Rota foi criada com sucesso. Agora você já pode acessar o portal, explorar as trilhas e iniciar sua jornada de aprendizagem."
-    )
+    body += "Sua conta na plataforma Rota foi criada com sucesso. Agora você já pode acessar o portal, explorar as trilhas e iniciar sua jornada de aprendizagem."
 
     html = _render_email_html(
         "Bem-vindo ao Rota",
@@ -150,14 +162,14 @@ def send_welcome_email(*, email: str, name: str | None = None):
         action_url=_base_url(),
         action_label="Acessar o Rota",
     )
-    send_email(subject="Sua conta Rota está pronta", to=[email], html_body=html, text_body=text)
+    send_email(
+        subject="Sua conta Rota está pronta", to=[email], html_body=html, text_body=text
+    )
 
 
 def send_trail_enrollment_email(*, email: str, name: str | None, trail_name: str):
     greeting = f"Olá, {name}! " if name else "Olá! "
-    body = (
-        f"{greeting}Você acabou de se inscrever na trilha '{trail_name}'. Continue acompanhando suas aulas e atividades para concluir o curso e receber seu certificado."
-    )
+    body = f"{greeting}Você acabou de se inscrever na trilha '{trail_name}'. Continue acompanhando suas aulas e atividades para concluir o curso e receber seu certificado."
     html = _render_email_html(
         "Inscrição confirmada",
         body,
@@ -170,15 +182,18 @@ def send_trail_enrollment_email(*, email: str, name: str | None, trail_name: str
         action_url=_base_url(),
         action_label="Ver minha trilha",
     )
-    send_email(subject="Inscrição na trilha confirmada", to=[email], html_body=html, text_body=text)
+    send_email(
+        subject="Inscrição na trilha confirmada",
+        to=[email],
+        html_body=html,
+        text_body=text,
+    )
 
 
 def send_password_reset_email(*, email: str, name: str | None, token: str):
     reset_url = _build_reset_url(token)
     greeting = f"Olá, {name}! " if name else "Olá! "
-    body = (
-        f"{greeting}Recebemos uma solicitação para redefinir a sua senha. Clique no botão abaixo para criar uma nova senha. Se você não fez essa solicitação, pode ignorar este email."
-    )
+    body = f"{greeting}Recebemos uma solicitação para redefinir a sua senha. Clique no botão abaixo para criar uma nova senha. Se você não fez essa solicitação, pode ignorar este email."
     html = _render_email_html(
         "Redefinição de senha",
         body,
@@ -191,14 +206,14 @@ def send_password_reset_email(*, email: str, name: str | None, token: str):
         action_url=reset_url,
         action_label="Redefinir senha",
     )
-    send_email(subject="Redefina sua senha no Rota", to=[email], html_body=html, text_body=text)
+    send_email(
+        subject="Redefina sua senha no Rota", to=[email], html_body=html, text_body=text
+    )
 
 
 def send_password_changed_notification(*, email: str, name: str | None = None):
     greeting = f"Olá, {name}! " if name else "Olá! "
-    body = (
-        f"{greeting}Sua senha foi atualizada com sucesso. Se você não reconhece esta alteração, acesse o Rota imediatamente e entre em contato com o suporte."
-    )
+    body = f"{greeting}Sua senha foi atualizada com sucesso. Se você não reconhece esta alteração, acesse o Rota imediatamente e entre em contato com o suporte."
     html = _render_email_html(
         "Senha atualizada",
         body,
@@ -211,7 +226,9 @@ def send_password_changed_notification(*, email: str, name: str | None = None):
         action_url=_base_url(),
         action_label="Ir para o Rota",
     )
-    send_email(subject="Sua senha foi atualizada", to=[email], html_body=html, text_body=text)
+    send_email(
+        subject="Sua senha foi atualizada", to=[email], html_body=html, text_body=text
+    )
 
 
 __all__ = [

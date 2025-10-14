@@ -132,9 +132,7 @@ def get_items_progress(trail_id: int):
     user_id = get_current_user_id()
     db = get_db()
     repo = UserTrailsRepository(db)
-    enrollment, _ = repo.ensure_enrollment(
-        user_id, trail_id, create_if_missing=False
-    )
+    enrollment, _ = repo.ensure_enrollment(user_id, trail_id, create_if_missing=False)
     if enrollment is None:
         return (
             jsonify(
@@ -153,9 +151,7 @@ def get_sections_progress(trail_id: int):
     user_id = get_current_user_id()
     db = get_db()
     repo = UserTrailsRepository(db)
-    enrollment, _ = repo.ensure_enrollment(
-        user_id, trail_id, create_if_missing=False
-    )
+    enrollment, _ = repo.ensure_enrollment(user_id, trail_id, create_if_missing=False)
     if enrollment is None:
         return (
             jsonify(

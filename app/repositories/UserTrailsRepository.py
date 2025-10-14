@@ -285,9 +285,11 @@ class UserTrailsRepository:
         )
 
         trail_ids = [row.trail_id for row in rows]
-        progress_map = self.get_progress_map_for_user(
-            user_id, trail_ids, sync=True
-        ) if trail_ids else {}
+        progress_map = (
+            self.get_progress_map_for_user(user_id, trail_ids, sync=True)
+            if trail_ids
+            else {}
+        )
 
         overview: List[Dict[str, Any]] = []
         for row in rows:
