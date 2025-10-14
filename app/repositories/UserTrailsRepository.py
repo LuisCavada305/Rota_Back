@@ -52,7 +52,7 @@ class UserTrailsRepository:
         progress_map = self.get_progress_map_for_user(user_id, [trail_id], sync=True)
         return progress_map.get(trail_id)
 
-    def ensure_enrollment(self, user_id: int, trail_id: int):
+    def ensure_enrollment(self, user_id: int, trail_id: int) -> tuple[UserTrailsORM, bool]:
         ut = (
             self.db.query(UserTrailsORM)
             .filter(
@@ -60,6 +60,7 @@ class UserTrailsRepository:
             )
             .first()
         )
+        created = False
         if not ut:
             status_id = self._enrollment_status_id("ENROLLED")
             ut = UserTrailsORM(
@@ -71,7 +72,8 @@ class UserTrailsRepository:
             )
             self.db.add(ut)
             self.db.commit()
-        return ut
+            created = True
+        return ut, created
 
     def _done_items(self, user_id: int, trail_id: int) -> int:
         return (

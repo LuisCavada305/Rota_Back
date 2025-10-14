@@ -137,6 +137,15 @@ class UserOut(BaseModel):
         )
 
 
+class PasswordResetRequestIn(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmIn(BaseModel):
+    token: str
+    new_password: str
+
+
 class LoginIn(BaseModel):
     email: EmailStr
     password: str

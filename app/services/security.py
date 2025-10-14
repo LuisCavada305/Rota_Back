@@ -14,6 +14,7 @@ from app.models.users import User
 
 JWT_ALG = "HS256"
 CSRF_TTL_SECONDS = 12 * 60 * 60  # 12 horas
+PASSWORD_RESET_TTL = timedelta(hours=1)
 
 
 def _secure_cookie_flag() -> bool:
@@ -49,6 +50,44 @@ def sign_session(payload: dict, expires_in: timedelta = timedelta(days=1)) -> st
         **payload,
     }
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=JWT_ALG)
+
+
+def generate_password_reset_token(user: User, expires_in: timedelta = PASSWORD_RESET_TTL) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(user.user_id),
+        "email": user.email,
+        "type": "password_reset",
+        "iat": now,
+        "exp": now + expires_in,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=JWT_ALG)
+
+
+def decode_password_reset_token(token: str) -> dict[str, str | int]:
+    try:
+        decoded = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[JWT_ALG],
+            options={"require": ["exp", "iat", "sub", "type"]},
+        )
+    except jwt.PyJWTError:
+        raise Unauthorized(description="Token de redefinição inválido ou expirado")
+
+    if decoded.get("type") != "password_reset":
+        raise Unauthorized(description="Token de redefinição inválido ou expirado")
+
+    try:
+        user_id = int(decoded["sub"])
+    except (KeyError, TypeError, ValueError):
+        raise Unauthorized(description="Token de redefinição inválido ou expirado")
+
+    email = decoded.get("email")
+    if not email:
+        raise Unauthorized(description="Token de redefinição inválido ou expirado")
+
+    return {"user_id": user_id, "email": email}
 
 
 def set_session_cookie(res: Response, token: str, remember: bool):

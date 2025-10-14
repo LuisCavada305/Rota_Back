@@ -9,6 +9,8 @@ from app.core.db import get_db
 from app.repositories.UserTrailsRepository import UserTrailsRepository
 from app.services.security import get_current_user, enforce_csrf
 from app.services.security import get_current_user_id
+from app.services.email import send_trail_enrollment_email
+from app.repositories.TrailsRepository import TrailsRepository
 
 
 bp = Blueprint("user_trails", __name__, url_prefix="/user-trails")
@@ -92,7 +94,15 @@ def enroll_in_trail(trail_id: int):
     user = get_current_user()
     db = get_db()
     repo = UserTrailsRepository(db)
-    repo.ensure_enrollment(user.user_id, trail_id)
+    _, created = repo.ensure_enrollment(user.user_id, trail_id)
+    if created:
+        trail = TrailsRepository(db).get_trail(trail_id)
+        if trail:
+            send_trail_enrollment_email(
+                email=user.email,
+                name=user.name_for_certificate,
+                trail_name=trail.name,
+            )
     progress = repo.get_progress_for_user(user.user_id, trail_id) or {
         "done": 0,
         "total": repo.count_items_in_trail(trail_id),

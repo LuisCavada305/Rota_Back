@@ -349,7 +349,7 @@ def create_cases() -> list[BenchmarkCase]:
             name="UserTrailsRepository.ensure_enrollment",
             func=lambda session, ctx: UserTrailsRepository(session).ensure_enrollment(
                 ctx.user_id, ctx.trail_id
-            ),
+            )[0],
             requires=("user_id", "trail_id"),
             writes=True,
         ),

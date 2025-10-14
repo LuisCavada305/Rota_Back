@@ -3,10 +3,18 @@ from __future__ import annotations
 import math
 
 from flask import Blueprint, jsonify, request, abort
+from werkzeug.exceptions import Unauthorized
 from pydantic import ValidationError
 
 from app.core.db import get_db
-from app.models.users import RegisterIn, LoginIn, UserOut, User
+from app.models.users import (
+    RegisterIn,
+    LoginIn,
+    UserOut,
+    User,
+    PasswordResetRequestIn,
+    PasswordResetConfirmIn,
+)
 from app.services.security import (
     hash_password,
     verify_password,
@@ -16,9 +24,16 @@ from app.services.security import (
     generate_csrf_token,
     clear_session_cookie,
     clear_csrf_cookie,
+    generate_password_reset_token,
+    decode_password_reset_token,
 )
 from app.repositories.UsersRepository import UsersRepository
 from app.services.rate_limiter import check_auth_rate_limit
+from app.services.email import (
+    send_welcome_email,
+    send_password_reset_email,
+    send_password_changed_notification,
+)
 
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -93,12 +108,63 @@ def register():
     )
 
     user_out = UserOut.from_orm_user(user).model_dump(mode="json")
+    send_welcome_email(email=user.email, name=user.name_for_certificate)
     response = jsonify({"user": user_out})
     set_session_cookie(response, token, remember=payload.remember)
     csrf_token = generate_csrf_token(str(user.user_id))
     set_csrf_cookie(response, csrf_token, remember=payload.remember)
     response.headers["X-CSRF-Token"] = csrf_token
     return response
+
+
+@bp.post("/password/forgot")
+def forgot_password():
+    try:
+        payload: PasswordResetRequestIn = _validate_payload(PasswordResetRequestIn)
+    except ValidationError as exc:
+        return jsonify({"detail": exc.errors()}), 422
+
+    limited = _rate_limited_response("password_reset", identifier=payload.email)
+    if limited:
+        return limited
+
+    db = get_db()
+    repo = UsersRepository(db)
+    user = repo.GetUserByEmail(payload.email)
+    if user:
+        token = generate_password_reset_token(user)
+        send_password_reset_email(
+            email=user.email,
+            name=user.name_for_certificate,
+            token=token,
+        )
+    return jsonify({"ok": True})
+
+
+@bp.post("/password/reset")
+def reset_password():
+    try:
+        payload: PasswordResetConfirmIn = _validate_payload(PasswordResetConfirmIn)
+    except ValidationError as exc:
+        return jsonify({"detail": exc.errors()}), 422
+
+    try:
+        token_data = decode_password_reset_token(payload.token)
+    except Unauthorized as exc:
+        return jsonify({"detail": exc.description or "Token inválido"}), exc.code
+
+    db = get_db()
+    repo = UsersRepository(db)
+    user = repo.GetUserByEmail(token_data["email"])
+    if not user or user.user_id != token_data["user_id"]:
+        return jsonify({"detail": "Token inválido"}), 401
+
+    repo.UpdatePassword(user, hash_password(payload.new_password))
+    send_password_changed_notification(
+        email=user.email,
+        name=user.name_for_certificate,
+    )
+    return jsonify({"ok": True})
 
 
 @bp.post("/login")

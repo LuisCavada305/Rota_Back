@@ -3,6 +3,7 @@ import uuid
 from http.cookies import SimpleCookie
 from sqlalchemy import text, select
 from app.models.users import User
+from app.services.security import generate_password_reset_token
 import pytest
 from app.models.roles import RolesEnum
 
@@ -279,3 +280,50 @@ def test_register_conflict_on_duplicate_username(client, db_session):
     assert r1.status_code == 200, r1.get_data(as_text=True)
     r2 = client.post("/auth/register", json=payload2)
     assert r2.status_code == 409, r2.get_data(as_text=True)
+
+
+def test_forgot_password_is_idempotent(client):
+    email = unique_email("missing")
+    r = client.post("/auth/password/forgot", json={"email": email})
+    assert r.status_code == 200
+    assert r.get_json()["ok"] is True
+
+
+def test_password_reset_flow_updates_credentials(client, db_session):
+    email = unique_email("reset")
+    wipe_user(db_session, email)
+
+    payload = {
+        "email": email,
+        "password": "antigaSenha!",
+        "name_for_certificate": "Reset User",
+        "sex": "NotSpecified",
+        "birthday": "2000-01-01",
+        "username": f"user_{uuid.uuid4().hex[:6]}",
+        "social_name": "Reset User",
+        "role": RolesEnum.User.value,
+    }
+
+    reg = client.post("/auth/register", json=payload)
+    assert reg.status_code == 200
+
+    user = db_session.execute(select(User).where(User.email == email)).scalar_one()
+    token = generate_password_reset_token(user)
+
+    reset_resp = client.post(
+        "/auth/password/reset",
+        json={"token": token, "new_password": "NovaSenha@123"},
+    )
+    assert reset_resp.status_code == 200, reset_resp.get_data(as_text=True)
+
+    old_login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "antigaSenha!", "remember": False},
+    )
+    assert old_login.status_code == 401
+
+    new_login = client.post(
+        "/auth/login",
+        json={"email": email, "password": "NovaSenha@123", "remember": False},
+    )
+    assert new_login.status_code == 200, new_login.get_data(as_text=True)
