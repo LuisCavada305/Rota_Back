@@ -15,6 +15,20 @@ class Settings(BaseSettings):
     COOKIE_NAME: str = Field(default="rota_session", env="COOKIE_NAME")
     CSRF_COOKIE_NAME: str = Field(default="rota_csrf", env="CSRF_COOKIE_NAME")
     ENV: str = Field(default="dev", env="ENV")
+    EMAIL_BACKEND: str = Field(default="console", env="EMAIL_BACKEND")
+    SMTP_HOST: str = Field(default="localhost", env="SMTP_HOST")
+    SMTP_PORT: int = Field(default=587, env="SMTP_PORT")
+    SMTP_USERNAME: str | None = Field(default=None, env="SMTP_USERNAME")
+    SMTP_PASSWORD: str | None = Field(default=None, env="SMTP_PASSWORD")
+    SMTP_USE_TLS: bool = Field(default=True, env="SMTP_USE_TLS")
+    SMTP_USE_SSL: bool = Field(default=False, env="SMTP_USE_SSL")
+    SMTP_TIMEOUT: float = Field(default=10.0, env="SMTP_TIMEOUT")
+    DEFAULT_FROM_EMAIL: str = Field(
+        default="no-reply@example.com", env="DEFAULT_FROM_EMAIL"
+    )
+    FRONTEND_ORIGIN: str = Field(
+        default="http://localhost:5173", env="FRONTEND_ORIGIN"
+    )
     
     model_config = SettingsConfigDict(
         env_file=".env",              # troque para ".env.docker" se rodar no compose

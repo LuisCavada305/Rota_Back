@@ -1,30 +1,23 @@
-# app/models/users.py
 from __future__ import annotations
-from datetime import datetime, date
-from typing import Optional
-from enum import Enum
 
-from sqlalchemy import String, DateTime, Date, func, Enum as SAEnum
-from sqlalchemy.dialects.postgresql import ENUM as PGEnum
-from sqlalchemy.orm import Mapped, mapped_column
+from datetime import date, datetime
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, field_validator
+from sqlalchemy import Date, DateTime, ForeignKey, String, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
-from app.models.roles import RolesEnum  # RolesEnum(str, Enum): Admin/User/Manager
-
-from sqlalchemy import ForeignKey
-from sqlalchemy.orm import relationship
-from app.models.lookups import LkSex, LkRole
+from app.models.lookups import LkRole, LkSex
+from app.models.roles import RolesEnum
 
 
-# ---- Enums ----
 class Sex(str, Enum):
     Male = "M"
     Female = "F"
     Other = "O"
     NotSpecified = "N"
-
-
-from app.core.settings import settings
 
 
 class User(Base):
@@ -33,51 +26,27 @@ class User(Base):
     user_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
-
-    # idealmente passe a usar created_at_utc (TIMESTAMP sem TZ); se mantiver created_at, OK também.
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    # se quiser mapear created_at_utc também:
-    # created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=False), server_default=func.now())
-
     name_for_certificate: Mapped[str] = mapped_column(String, nullable=False)
-
-    # >>> NOVO: FKs para lookups
     sex_id: Mapped[int] = mapped_column(ForeignKey("lk_sex.id"), nullable=False)
     role_id: Mapped[int] = mapped_column(ForeignKey("lk_role.id"), nullable=False)
-
-    # relações para fácil acesso ao code
     sex: Mapped[LkSex] = relationship()
     role: Mapped[LkRole] = relationship()
-
     birthday: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     social_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-
-    # seu modelo estava Optional mas nullable=False; alinhei para NOT NULL
-    username: Mapped[str] = mapped_column(
-        String, unique=True, index=True, nullable=False
-    )
-
+    username: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     profile_pic_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     banner_pic_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # helpers para expor os códigos como antes (M/F/O/N e Admin/User/Manager)
     @property
     def sex_code(self) -> str:
-        return self.sex.code if self.sex else "N"
+        return self.sex.code if self.sex else Sex.NotSpecified.value
 
     @property
     def role_code(self) -> str:
-        return self.role.code if self.role else "User"
-
-
-# --------- Pydantic Schemas ---------
-from pydantic import BaseModel, EmailStr, field_validator
-
-
-# app/models/users.py (mesmo arquivo, parte Pydantic)
-from pydantic import BaseModel, EmailStr, field_validator
+        return self.role.code if self.role else RolesEnum.User.value
 
 
 class RegisterIn(BaseModel):
@@ -93,8 +62,10 @@ class RegisterIn(BaseModel):
 
     @field_validator("sex", mode="before")
     @classmethod
-    def map_letters_to_enum(cls, v):
-        if isinstance(v, str):
+    def map_letters_to_enum(cls, value):
+        if isinstance(value, Sex):
+            return value
+        if isinstance(value, str):
             mapping = {
                 "M": Sex.Male,
                 "F": Sex.Female,
@@ -105,14 +76,23 @@ class RegisterIn(BaseModel):
                 "Other": Sex.Other,
                 "NotSpecified": Sex.NotSpecified,
             }
-            return mapping.get(v, v)
-        return v
+            return mapping.get(value, value)
+        return value
 
 
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
     remember: bool = False
+
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
 
 
 class UserOut(BaseModel):
@@ -125,41 +105,13 @@ class UserOut(BaseModel):
     sex: Sex
 
     @classmethod
-    def from_orm_user(cls, u: "User") -> "UserOut":
+    def from_orm_user(cls, user: User) -> UserOut:
         return cls(
-            user_id=u.user_id,
-            email=u.email,
-            username=u.username,
-            profile_pic_url=u.profile_pic_url,
-            banner_pic_url=u.banner_pic_url,
-            role=RolesEnum(u.role_code),  # <-- da lookup
-            sex=Sex(u.sex_code),  # <-- da lookup
-        )
-
-
-class LoginIn(BaseModel):
-    email: EmailStr
-    password: str
-    remember: bool = False
-
-
-class UserOut(BaseModel):
-    user_id: int
-    email: EmailStr
-    username: str
-    profile_pic_url: Optional[str] = None
-    banner_pic_url: Optional[str] = None
-    role: RolesEnum
-    sex: Sex
-
-    @classmethod
-    def from_orm_user(cls, u: "User") -> "UserOut":
-        return cls(
-            user_id=u.user_id,
-            email=u.email,
-            username=u.username,
-            profile_pic_url=u.profile_pic_url,
-            banner_pic_url=u.banner_pic_url,
-            role=RolesEnum(u.role_code),  # <-- da lookup
-            sex=Sex(u.sex_code),  # <-- da lookup
+            user_id=user.user_id,
+            email=user.email,
+            username=user.username,
+            profile_pic_url=user.profile_pic_url,
+            banner_pic_url=user.banner_pic_url,
+            role=RolesEnum(user.role_code),
+            sex=Sex(user.sex_code),
         )
