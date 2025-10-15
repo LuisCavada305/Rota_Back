@@ -17,15 +17,15 @@ def create_app() -> Flask:
 
     ensure_forum_tables()
 
-    allowed_origins = settings.cors_allowed_origins or [settings.API_ORIGIN]
+    allowed_origins = settings.cors_allowed_origins_list() or [settings.API_ORIGIN]
 
     # Use SEMPRE o Flask-CORS real
     FlaskCORS(
         app,
         origins=allowed_origins,
         supports_credentials=True,
-        expose_headers=settings.cors_expose_headers,
-        allow_headers=settings.cors_allow_headers,
+        expose_headers=settings.cors_expose_headers_list(),
+        allow_headers=settings.cors_allow_headers_list(),
     )
 
     if settings.is_production:

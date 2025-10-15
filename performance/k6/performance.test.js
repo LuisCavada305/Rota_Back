@@ -7,29 +7,70 @@ const AUTH_EMAIL = __ENV.AUTH_EMAIL || '';
 const AUTH_PASSWORD = __ENV.AUTH_PASSWORD || 'PerfTest@123';
 const AUTH_USERNAME = __ENV.AUTH_USERNAME || '';
 const DEFAULT_RATE = Number(__ENV.TARGET_RPS || 5);
-const DEFAULT_DURATION = __ENV.TEST_DURATION || '1m';
+const DEFAULT_DURATION = __ENV.TEST_DURATION || '2m';
+const WARMUP_DURATION = __ENV.WARMUP_DURATION || '30s';
+const COOLDOWN_DURATION = __ENV.COOLDOWN_DURATION || '30s';
 const DEFAULT_VUS = Number(__ENV.PRE_ALLOCATED_VUS || 20);
+const MAX_VUS = Number(__ENV.MAX_VUS || Math.max(DEFAULT_VUS * 4, DEFAULT_VUS + 10));
+const WRITE_RATE = Number(
+  __ENV.WRITE_RPS || Math.max(1, Math.round(DEFAULT_RATE / 4)),
+);
 const ENABLE_WRITE_SCENARIOS = (__ENV.ENABLE_WRITE_SCENARIOS || 'true').toLowerCase() !== 'false';
 const SESSION_COOKIE_NAME = __ENV.SESSION_COOKIE_NAME || 'rota_session';
 const CSRF_COOKIE_NAME = __ENV.CSRF_COOKIE_NAME || 'rota_csrf';
 const INSECURE_SKIP_TLS_VERIFY =
   (__ENV.INSECURE_SKIP_TLS_VERIFY || 'true').toLowerCase() !== 'false';
+const RATE_LIMIT_MAX_ATTEMPTS = Number(__ENV.AUTH_RATE_LIMIT_MAX_ATTEMPTS || 10);
+const LOGIN_USER_POOL = Number(__ENV.LOGIN_USER_POOL || 0);
 
-const BASE_SCENARIO = {
-  executor: 'constant-arrival-rate',
-  rate: DEFAULT_RATE,
-  timeUnit: '1s',
-  duration: DEFAULT_DURATION,
-  preAllocatedVUs: DEFAULT_VUS,
-  gracefulStop: '10s',
-};
+function buildStages(targetRate) {
+  const warmupTarget = Math.max(1, Math.round(targetRate * 0.5));
+  const coolTarget = Math.max(1, Math.round(targetRate * 0.25));
+  return [
+    { duration: WARMUP_DURATION, target: warmupTarget },
+    { duration: DEFAULT_DURATION, target: targetRate },
+    { duration: COOLDOWN_DURATION, target: coolTarget },
+    { duration: '15s', target: 0 },
+  ];
+}
 
 const endpointLatency = new Trend('endpoint_duration_ms', true);
 const responseBodySize = new Trend('response_body_bytes', true);
 const skipNotices = {};
 
 function scenario(definitionOverrides = {}) {
-  return Object.assign({}, BASE_SCENARIO, definitionOverrides);
+  const targetRate = definitionOverrides.targetRate || DEFAULT_RATE;
+  const tags = definitionOverrides.tags || { traffic: 'read' };
+  const stages = definitionOverrides.stages || buildStages(targetRate);
+
+  const baseConfig = {
+    executor: 'ramping-arrival-rate',
+    startRate: Math.max(1, Math.round(targetRate * 0.25)),
+    timeUnit: '1s',
+    stages,
+    preAllocatedVUs: DEFAULT_VUS,
+    maxVUs: MAX_VUS,
+    gracefulStop: '30s',
+    tags,
+  };
+
+  const overrides = { ...definitionOverrides };
+  delete overrides.targetRate;
+  delete overrides.tags;
+  delete overrides.stages;
+
+  return { ...baseConfig, ...overrides };
+}
+
+function nextLoginCredential(ctx) {
+  if (Array.isArray(ctx.loginPool) && ctx.loginPool.length > 0) {
+    const pool = ctx.loginPool;
+    const iter = typeof __ITER === 'number' ? __ITER : 0;
+    const vu = typeof __VU === 'number' ? __VU : 0;
+    const index = (iter + vu) % pool.length;
+    return pool[index];
+  }
+  return ctx.credentials;
 }
 
 const endpointDefinitions = {
@@ -103,11 +144,16 @@ const endpointDefinitions = {
     method: 'POST',
     path: () => '/auth/login',
     headers: { 'Content-Type': 'application/json' },
-    body: (ctx) => JSON.stringify({
-      email: ctx.credentials.email,
-      password: ctx.credentials.password,
-      remember: true,
-    }),
+    acceptableStatus: [200, 429],
+    markExpected: true,
+    body: (ctx) => {
+      const creds = nextLoginCredential(ctx);
+      return JSON.stringify({
+        email: creds.email,
+        password: creds.password,
+        remember: true,
+      });
+    },
   },
   user_trail_enroll: {
     name: 'POST /user-trails/:trailId/enroll',
@@ -151,10 +197,19 @@ const endpointDefinitions = {
     requires: ['dataset.trailId', 'dataset.itemId'],
     authRequired: true,
     requireCsrf: true,
-    body: () => JSON.stringify({
-      status: 'COMPLETED',
-      progress_value: 100,
-    }),
+    body: (ctx) => {
+      const payload = {
+        status: 'IN_PROGRESS',
+        progress_value: 30,
+      };
+      if (ctx.dataset.itemDurationSeconds) {
+        payload.progress_value = Math.min(
+          Math.max(10, Math.floor(ctx.dataset.itemDurationSeconds * 0.3)),
+          ctx.dataset.itemDurationSeconds,
+        );
+      }
+      return JSON.stringify(payload);
+    },
   },
   trail_form_submission: {
     name: 'POST /trails/:id/items/:itemId/form-submissions',
@@ -176,30 +231,83 @@ const endpointDefinitions = {
 
 export const options = {
   insecureSkipTLSVerify: INSECURE_SKIP_TLS_VERIFY,
+  thresholds: {
+    http_req_failed: [{ threshold: 'rate<0.01', abortOnFail: true }],
+    http_req_duration: [
+      { threshold: 'p(95)<500', abortOnFail: false },
+      { threshold: 'p(99)<1000', abortOnFail: false },
+    ],
+    endpoint_duration_ms: [{ threshold: 'p(95)<450' }],
+  },
+  summaryTrendStats: ['avg', 'min', 'max', 'p(90)', 'p(95)', 'p(99)'],
   scenarios: {
-    trails_showcase: scenario({ exec: 'trails_showcase' }),
-    trails_list: scenario({ exec: 'trails_list' }),
-    trails_detail: scenario({ exec: 'trails_detail' }),
-    trails_sections: scenario({ exec: 'trails_sections' }),
-    trails_section_items: scenario({ exec: 'trails_section_items' }),
-    trails_sections_with_items: scenario({ exec: 'trails_sections_with_items' }),
-    trails_included_items: scenario({ exec: 'trails_included_items' }),
-    trails_requirements: scenario({ exec: 'trails_requirements' }),
-    trails_audience: scenario({ exec: 'trails_audience' }),
-    trails_learn: scenario({ exec: 'trails_learn' }),
-    trail_item_detail: scenario({ exec: 'trail_item_detail' }),
-    auth_login: scenario({ exec: 'auth_login' }),
-    user_trail_enroll: scenario({ exec: 'user_trail_enroll', gracefulStop: '0s' }),
-    user_trail_progress: scenario({ exec: 'user_trail_progress' }),
-    user_trail_items_progress: scenario({ exec: 'user_trail_items_progress' }),
-    user_trail_sections_progress: scenario({ exec: 'user_trail_sections_progress' }),
-    me_profile: scenario({ exec: 'me_profile' }),
+    trails_showcase: scenario({ exec: 'trails_showcase', tags: { traffic: 'read' } }),
+    trails_list: scenario({ exec: 'trails_list', tags: { traffic: 'read' } }),
+    trails_detail: scenario({ exec: 'trails_detail', tags: { traffic: 'read' } }),
+    trails_sections: scenario({ exec: 'trails_sections', tags: { traffic: 'read' } }),
+    trails_section_items: scenario({
+      exec: 'trails_section_items',
+      tags: { traffic: 'read' },
+    }),
+    trails_sections_with_items: scenario({
+      exec: 'trails_sections_with_items',
+      tags: { traffic: 'read' },
+    }),
+    trails_included_items: scenario({
+      exec: 'trails_included_items',
+      tags: { traffic: 'read' },
+    }),
+    trails_requirements: scenario({
+      exec: 'trails_requirements',
+      tags: { traffic: 'read' },
+    }),
+    trails_audience: scenario({
+      exec: 'trails_audience',
+      tags: { traffic: 'read' },
+    }),
+    trails_learn: scenario({ exec: 'trails_learn', tags: { traffic: 'read' } }),
+    trail_item_detail: scenario({
+      exec: 'trail_item_detail',
+      tags: { traffic: 'read' },
+    }),
+    auth_login: scenario({
+      exec: 'auth_login',
+      targetRate: WRITE_RATE,
+      tags: { traffic: 'write' },
+    }),
+    user_trail_enroll: scenario({
+      exec: 'user_trail_enroll',
+      targetRate: WRITE_RATE,
+      gracefulStop: '0s',
+      tags: { traffic: 'write' },
+    }),
+    user_trail_progress: scenario({
+      exec: 'user_trail_progress',
+      tags: { traffic: 'read' },
+    }),
+    user_trail_items_progress: scenario({
+      exec: 'user_trail_items_progress',
+      tags: { traffic: 'read' },
+    }),
+    user_trail_sections_progress: scenario({
+      exec: 'user_trail_sections_progress',
+      tags: { traffic: 'read' },
+    }),
+    me_profile: scenario({ exec: 'me_profile', tags: { traffic: 'read' } }),
   },
 };
 
 if (ENABLE_WRITE_SCENARIOS) {
-  options.scenarios.trail_item_progress = scenario({ exec: 'trail_item_progress' });
-  options.scenarios.trail_form_submission = scenario({ exec: 'trail_form_submission' });
+  options.scenarios.trail_item_progress = scenario({
+    exec: 'trail_item_progress',
+    targetRate: WRITE_RATE,
+    tags: { traffic: 'write' },
+  });
+  options.scenarios.trail_form_submission = scenario({
+    exec: 'trail_form_submission',
+    targetRate: WRITE_RATE,
+    tags: { traffic: 'write' },
+  });
 }
 
 function resolvePath(obj, path) {
@@ -248,6 +356,9 @@ function extractAuth(res) {
 
 function makeParams(def, ctx) {
   const params = { tags: { endpoint: def.name } };
+  if (def.markExpected) {
+    params.tags.expected_response = 'true';
+  }
   const headers = { Accept: 'application/json' };
   if (def.headers) {
     Object.assign(headers, def.headers);
@@ -266,6 +377,17 @@ function makeParams(def, ctx) {
   }
   params.headers = headers;
   return params;
+}
+
+function resolveAcceptableStatus(def) {
+  if (Array.isArray(def.acceptableStatus)) {
+    const allowed = new Set(def.acceptableStatus);
+    return (status) => allowed.has(status);
+  }
+  if (typeof def.acceptableStatus === 'function') {
+    return def.acceptableStatus;
+  }
+  return (status) => status < 400;
 }
 
 function requestEndpoint(key, ctx) {
@@ -298,8 +420,9 @@ function requestEndpoint(key, ctx) {
   endpointLatency.add(response.timings.duration, { endpoint: def.name });
   responseBodySize.add(Number(response.body?.length || 0), { endpoint: def.name });
 
+  const isStatusAllowed = resolveAcceptableStatus(def);
   const ok = check(response, {
-    [`${def.name} < 400`]: (res) => res.status < 400,
+    [`${def.name} ok`]: (res) => isStatusAllowed(res.status),
   });
   if (!ok) {
     console.error(`${def.name} responded with status ${response.status}`);
@@ -329,20 +452,6 @@ function ensureUserCredentials() {
     username = email.split('@')[0];
   }
 
-  const payload = JSON.stringify({ email, password, remember: true });
-  const loginRes = http.post(`${BASE_URL}/auth/login`, payload, {
-    headers: { 'Content-Type': 'application/json' },
-    tags: { endpoint: 'POST /auth/login (setup)' },
-  });
-
-  if (loginRes.status === 200) {
-    return { auth: extractAuth(loginRes), credentials: { email, password, username } };
-  }
-
-  if (loginRes.status !== 401) {
-    fail(`Unable to login (${loginRes.status}): ${loginRes.body}`);
-  }
-
   const registerPayload = JSON.stringify({
     email,
     password,
@@ -356,14 +465,77 @@ function ensureUserCredentials() {
 
   const registerRes = http.post(`${BASE_URL}/auth/register`, registerPayload, {
     headers: { 'Content-Type': 'application/json' },
-    tags: { endpoint: 'POST /auth/register (setup)' },
+    tags: { endpoint: 'POST /auth/register (setup)', expected_response: 'true' },
   });
+
+  if (registerRes.status === 200) {
+    return { auth: extractAuth(registerRes), credentials: { email, password, username } };
+  }
+
+  if (registerRes.status === 409) {
+    const payload = JSON.stringify({ email, password, remember: true });
+    const loginRes = http.post(`${BASE_URL}/auth/login`, payload, {
+      headers: { 'Content-Type': 'application/json' },
+      tags: { endpoint: 'POST /auth/login (setup)', expected_response: 'true' },
+    });
+
+    if (loginRes.status === 200) {
+      return { auth: extractAuth(loginRes), credentials: { email, password, username } };
+    }
+
+    fail(`Unable to login existing test user (${loginRes.status}): ${loginRes.body}`);
+  }
 
   if (registerRes.status >= 400) {
     fail(`Unable to register test user (${registerRes.status}): ${registerRes.body}`);
   }
 
   return { auth: extractAuth(registerRes), credentials: { email, password, username } };
+}
+
+function buildLoginPool(ctx) {
+  const pool = [{ ...ctx.credentials }];
+  const perUserLimit = Math.max(1, RATE_LIMIT_MAX_ATTEMPTS);
+  const desiredPoolSizeRaw = LOGIN_USER_POOL || Math.ceil((WRITE_RATE * 60) / perUserLimit) + 3;
+  const minForVus = Math.max(DEFAULT_VUS * 3, MAX_VUS * 2);
+  const desiredPoolSize = Math.max(6, desiredPoolSizeRaw, minForVus);
+
+  for (let i = pool.length; i < desiredPoolSize; i += 1) {
+    const stamp = `${Date.now()}-${i}`;
+    const email = `perf-${stamp}@example.com`;
+    const username = `perf_${stamp}`;
+    const registerPayload = JSON.stringify({
+      email,
+      password: AUTH_PASSWORD,
+      name_for_certificate: 'Performance Tester',
+      username,
+      sex: 'M',
+      role: 'User',
+      birthday: '1990-01-01',
+      remember: true,
+    });
+
+    const registerRes = http.post(`${BASE_URL}/auth/register`, registerPayload, {
+      headers: { 'Content-Type': 'application/json' },
+      tags: { endpoint: 'POST /auth/register (login pool setup)' },
+    });
+
+    if (registerRes.status >= 400) {
+      console.warn(`Failed to create login pool user (${registerRes.status}): ${registerRes.body}`);
+      break;
+    }
+
+    pool.push({
+      email,
+      password: AUTH_PASSWORD,
+      username,
+    });
+
+    sleep(0.05);
+  }
+
+  ctx.loginPool = pool;
+  ctx.loginPoolSize = pool.length;
 }
 
 function hydrateDataset(ctx) {
@@ -404,7 +576,10 @@ function hydrateDataset(ctx) {
     const firstSection = sections[0];
     dataset.sectionId = firstSection?.id || null;
     if (firstSection?.items?.length) {
-      dataset.itemId = firstSection.items[0].id;
+      const firstItem = firstSection.items[0];
+      dataset.itemId = firstItem.id;
+      dataset.itemType = firstItem.type || null;
+      dataset.itemDurationSeconds = firstItem.duration_seconds || 0;
     }
     for (const section of sections) {
       if (!section?.items) {
@@ -443,6 +618,7 @@ function hydrateDataset(ctx) {
 export function setup() {
   const ctx = ensureUserCredentials();
   ctx.dataset = hydrateDataset(ctx);
+  buildLoginPool(ctx);
 
   if (ctx.dataset.trailId && ctx.auth && ctx.auth.cookieHeader) {
     const enrollParams = makeParams(

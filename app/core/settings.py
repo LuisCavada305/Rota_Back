@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     CSRF_COOKIE_NAME: str = Field(default="rota_csrf", env="CSRF_COOKIE_NAME")
     ENV: str = Field(default="dev", env="ENV")
 
-    cors_allowed_origins: list[str] = Field(
+    cors_allowed_origins: list[str] | str = Field(
         default_factory=lambda: [
             "http://localhost:5173",
             "http://127.0.0.1:5173",
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
         ],
         env="CORS_ALLOWED_ORIGINS",
     )
-    cors_allow_headers: list[str] = Field(
+    cors_allow_headers: list[str] | str = Field(
         default_factory=lambda: [
             "Content-Type",
             "X-CSRF-Token",
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
         ],
         env="CORS_ALLOW_HEADERS",
     )
-    cors_expose_headers: list[str] = Field(
+    cors_expose_headers: list[str] | str = Field(
         default_factory=lambda: ["X-CSRF-Token", "X-CSRFToken"],
         env="CORS_EXPOSE_HEADERS",
     )
@@ -98,9 +98,9 @@ class Settings(BaseSettings):
 
     @field_validator("cors_allowed_origins", "cors_allow_headers", "cors_expose_headers", mode="before")
     @classmethod
-    def _coerce_csv(cls, value: Iterable[str] | str | None) -> list[str]:
-        if value is None:
-            return []
+    def _coerce_csv(cls, value: Iterable[str] | str | None) -> list[str] | None:
+        if value is None or value == "":
+            return None
         if isinstance(value, str):
             return _split_csv(value)
         return [str(item).strip() for item in value if str(item).strip()]
@@ -130,10 +130,25 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_set(self) -> set[str]:
-        return set(self.cors_allowed_origins)
+        return set(self.cors_allowed_origins_list())
+
+    def cors_allowed_origins_list(self) -> list[str]:
+        if isinstance(self.cors_allowed_origins, list):
+            return self.cors_allowed_origins
+        return _split_csv(self.cors_allowed_origins or "")
+
+    def cors_allow_headers_list(self) -> list[str]:
+        if isinstance(self.cors_allow_headers, list):
+            return self.cors_allow_headers
+        return _split_csv(self.cors_allow_headers or "")
+
+    def cors_expose_headers_list(self) -> list[str]:
+        if isinstance(self.cors_expose_headers, list):
+            return self.cors_expose_headers
+        return _split_csv(self.cors_expose_headers or "")
 
     def cors_allow_headers_string(self) -> str:
-        return ",".join(self.cors_allow_headers)
+        return ",".join(self.cors_allow_headers_list())
 
 
 settings = Settings()
