@@ -5,7 +5,9 @@ def unique_email(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}@example.com"
 
 
-def register_and_login(client, db_session):  # noqa: ARG001 - fixture triggers DB seeding
+def register_and_login(
+    client, db_session
+):  # noqa: ARG001 - fixture triggers DB seeding
     _ = db_session
     email = unique_email("me")
     payload = {

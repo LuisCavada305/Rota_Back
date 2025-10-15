@@ -12,6 +12,7 @@ from app.routes.user_trails import bp as user_trails_bp
 from app.routes.forums import bp as forums_bp
 from app.services.forum_bootstrap import ensure_forum_tables
 
+
 def create_app() -> Flask:
     app = Flask(__name__)
 
@@ -40,9 +41,9 @@ def create_app() -> Flask:
         if origin and origin in settings.cors_origin_set:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers[
-                "Access-Control-Allow-Headers"
-            ] = settings.cors_allow_headers_string()
+            response.headers["Access-Control-Allow-Headers"] = (
+                settings.cors_allow_headers_string()
+            )
             response.headers["Access-Control-Allow-Methods"] = (
                 "GET,POST,PUT,DELETE,OPTIONS"
             )

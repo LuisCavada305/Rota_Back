@@ -68,7 +68,9 @@ class Settings(BaseSettings):
     smtp_from_name: str = Field(default="Equipe Rota", env="SMTP_FROM_NAME")
     smtp_from_email: str | None = Field(default=None, env="SMTP_FROM_EMAIL")
     app_base_url: str | None = Field(default=None, env="APP_BASE_URL")
-    password_reset_path: str = Field(default="/redefinir-senha", env="PASSWORD_RESET_PATH")
+    password_reset_path: str = Field(
+        default="/redefinir-senha", env="PASSWORD_RESET_PATH"
+    )
     rota_brand_color: str = Field(default="#0A3D8F", env="ROTA_BRAND_COLOR")
 
     model_config = SettingsConfigDict(
@@ -96,7 +98,12 @@ class Settings(BaseSettings):
         value = value.strip()
         return value or None
 
-    @field_validator("cors_allowed_origins", "cors_allow_headers", "cors_expose_headers", mode="before")
+    @field_validator(
+        "cors_allowed_origins",
+        "cors_allow_headers",
+        "cors_expose_headers",
+        mode="before",
+    )
     @classmethod
     def _coerce_csv(cls, value: Iterable[str] | str | None) -> list[str] | None:
         if value is None or value == "":
