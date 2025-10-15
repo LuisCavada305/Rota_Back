@@ -16,7 +16,9 @@ parâmetros seguros configuráveis por variáveis de ambiente.
 2. Instale as dependências: `pip install -r requirements.txt`
 3. Copie o arquivo `.env.example` para `.env` e ajuste os valores.
 4. Execute as migrações/tabelas iniciais conforme scripts existentes.
-5. Suba o servidor: `flask --app app.main run` (ou use o `make run` disponibilizado).
+5. Suba o servidor: `flask --app app.main run` (ou simplesmente `make`, que roda o alvo `run`).
+
+> O `make` já lê as variáveis do arquivo `.env`; se ele não existir, copie o `.env.example`.
 
 ## Variáveis de ambiente principais
 
