@@ -1,7 +1,7 @@
 # tests/conftest.py
 import os
 
-os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ.setdefault("JWT_SECRET", "test-secret-change-me-123")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 
 import pytest

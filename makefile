@@ -22,7 +22,7 @@ REQ_MAIN    ?= requirements.txt
 PY          ?= python
 
 .PHONY: default run run-http run-prod-gunicorn run-prod-uvicorn run-prod-waitress test install-dev install-prod certs clean-certs
-.DEFAULT_GOAL := run-prod-uvicorn
+.DEFAULT_GOAL := run
 
 # ---------- Dev (HTTPS local opcional) ----------
 run: install-dev certs
