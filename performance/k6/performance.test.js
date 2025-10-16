@@ -21,6 +21,7 @@ const CSRF_COOKIE_NAME = __ENV.CSRF_COOKIE_NAME || 'rota_csrf';
 const INSECURE_SKIP_TLS_VERIFY =
   (__ENV.INSECURE_SKIP_TLS_VERIFY || 'true').toLowerCase() !== 'false';
 const RATE_LIMIT_MAX_ATTEMPTS = Number(__ENV.AUTH_RATE_LIMIT_MAX_ATTEMPTS || 10);
+const RATE_LIMIT_WINDOW_SECONDS = Number(__ENV.AUTH_RATE_LIMIT_WINDOW_SECONDS || 60);
 const LOGIN_USER_POOL = Number(__ENV.LOGIN_USER_POOL || 0);
 
 function buildStages(targetRate) {
@@ -143,6 +144,7 @@ const endpointDefinitions = {
     name: 'POST /auth/login',
     method: 'POST',
     path: () => '/auth/login',
+    testPhase: 'auth',
     headers: { 'Content-Type': 'application/json' },
     acceptableStatus: [200, 429],
     markExpected: true,
@@ -232,7 +234,8 @@ const endpointDefinitions = {
 export const options = {
   insecureSkipTLSVerify: INSECURE_SKIP_TLS_VERIFY,
   thresholds: {
-    http_req_failed: [{ threshold: 'rate<0.01', abortOnFail: true }],
+    'http_req_failed{phase:main}': [{ threshold: 'rate<0.01', abortOnFail: true }],
+    'http_req_failed{phase:auth}': [{ threshold: 'rate<=1', abortOnFail: false }],
     http_req_duration: [
       { threshold: 'p(95)<500', abortOnFail: false },
       { threshold: 'p(99)<1000', abortOnFail: false },
@@ -355,7 +358,7 @@ function extractAuth(res) {
 }
 
 function makeParams(def, ctx) {
-  const params = { tags: { endpoint: def.name } };
+  const params = { tags: { endpoint: def.name, phase: def.testPhase || 'main' } };
   if (def.markExpected) {
     params.tags.expected_response = 'true';
   }
@@ -465,7 +468,11 @@ function ensureUserCredentials() {
 
   const registerRes = http.post(`${BASE_URL}/auth/register`, registerPayload, {
     headers: { 'Content-Type': 'application/json' },
-    tags: { endpoint: 'POST /auth/register (setup)', expected_response: 'true' },
+    tags: {
+      endpoint: 'POST /auth/register (setup)',
+      expected_response: 'true',
+      phase: 'setup',
+    },
   });
 
   if (registerRes.status === 200) {
@@ -476,7 +483,11 @@ function ensureUserCredentials() {
     const payload = JSON.stringify({ email, password, remember: true });
     const loginRes = http.post(`${BASE_URL}/auth/login`, payload, {
       headers: { 'Content-Type': 'application/json' },
-      tags: { endpoint: 'POST /auth/login (setup)', expected_response: 'true' },
+      tags: {
+        endpoint: 'POST /auth/login (setup)',
+        expected_response: 'true',
+        phase: 'setup',
+      },
     });
 
     if (loginRes.status === 200) {
@@ -517,7 +528,10 @@ function buildLoginPool(ctx) {
 
     const registerRes = http.post(`${BASE_URL}/auth/register`, registerPayload, {
       headers: { 'Content-Type': 'application/json' },
-      tags: { endpoint: 'POST /auth/register (login pool setup)' },
+      tags: {
+        endpoint: 'POST /auth/register (login pool setup)',
+        phase: 'setup',
+      },
     });
 
     if (registerRes.status >= 400) {
@@ -548,7 +562,10 @@ function hydrateDataset(ctx) {
   };
 
   const params =
-    makeParams({ name: 'dataset bootstrap', authRequired: !!ctx.auth }, ctx) || {
+    makeParams(
+      { name: 'dataset bootstrap', authRequired: !!ctx.auth, testPhase: 'setup' },
+      ctx,
+    ) || {
       headers: { Accept: 'application/json' },
     };
 
@@ -615,10 +632,110 @@ function hydrateDataset(ctx) {
   return dataset;
 }
 
+function verifyAuthRateLimit() {
+  const limit = Math.max(1, RATE_LIMIT_MAX_ATTEMPTS);
+  const stamp = `${Date.now()}-limit`;
+  const email = `ratelimit-${stamp}@example.com`;
+  const username = `ratelimit_${stamp}`;
+
+  const registerPayload = JSON.stringify({
+    email,
+    password: AUTH_PASSWORD,
+    name_for_certificate: 'Performance Tester',
+    username,
+    sex: 'M',
+    role: 'User',
+    birthday: '1990-01-01',
+    remember: true,
+  });
+
+  const registerRes = http.post(`${BASE_URL}/auth/register`, registerPayload, {
+    headers: { 'Content-Type': 'application/json' },
+    tags: {
+      endpoint: 'POST /auth/register (rate limit verify)',
+      expected_response: 'true',
+      phase: 'setup',
+    },
+  });
+
+  if (registerRes.status >= 400 && registerRes.status !== 409) {
+    fail(`Unable to create rate-limit test user (${registerRes.status}): ${registerRes.body}`);
+  }
+
+  const loginPayload = JSON.stringify({ email, password: AUTH_PASSWORD, remember: true });
+  const loginParams = {
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    tags: {
+      endpoint: 'POST /auth/login (rate limit verify)',
+      expected_response: 'true',
+      rate_limit_check: 'true',
+      phase: 'setup',
+    },
+  };
+
+  let allowedCount = 0;
+  let limitedCount = 0;
+  let firstLimitedAt = -1;
+  let retryAfterSeconds = 0;
+  let unexpectedStatus = null;
+
+  const attempts = limit + 3;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const response = http.post(`${BASE_URL}/auth/login`, loginPayload, loginParams);
+    if (response.status === 200) {
+      allowedCount += 1;
+    } else if (response.status === 429) {
+      limitedCount += 1;
+      if (firstLimitedAt === -1) {
+        firstLimitedAt = attempt;
+        const retryHeader = response.headers['Retry-After'] || response.headers['retry-after'] || '0';
+        retryAfterSeconds = Number(retryHeader) || 0;
+      }
+    } else {
+      unexpectedStatus = response.status;
+      break;
+    }
+    sleep(0.2);
+  }
+
+  if (unexpectedStatus !== null) {
+    fail(`Rate limit verification encountered unexpected status ${unexpectedStatus}`);
+  }
+
+  if (limitedCount === 0) {
+    fail(`Rate limiting did not trigger after ${attempts} login attempts for ${email}`);
+  }
+
+  if (firstLimitedAt < limit) {
+    fail(
+      `Rate limiting activated too early for ${email} (attempt ${firstLimitedAt + 1} of allowed ${limit})`,
+    );
+  }
+
+  if (retryAfterSeconds <= 0 || Number.isNaN(retryAfterSeconds)) {
+    fail(`Rate limit response missing valid Retry-After header for ${email}`);
+  }
+
+  console.log(
+    `Rate limit verification: ${allowedCount} allowed, ${limitedCount} limited (limit=${limit}, retryAfter≈${retryAfterSeconds}s)`,
+  );
+
+  return {
+    limit,
+    allowedCount,
+    limitedCount,
+    firstLimitedAt,
+    retryAfterSeconds,
+    windowSeconds: RATE_LIMIT_WINDOW_SECONDS,
+    email,
+  };
+}
+
 export function setup() {
   const ctx = ensureUserCredentials();
   ctx.dataset = hydrateDataset(ctx);
   buildLoginPool(ctx);
+  ctx.rateLimitVerification = verifyAuthRateLimit();
 
   if (ctx.dataset.trailId && ctx.auth && ctx.auth.cookieHeader) {
     const enrollParams = makeParams(
@@ -676,8 +793,13 @@ export function handleSummary(data) {
     : 0;
   const throughputKibPerSecond = throughputBytesPerSecond / 1024;
 
+  const rateLimitInfo = data.state?.rateLimitVerification;
+
   const summaryLines = [
     '========== Performance Summary ==========',
+    rateLimitInfo
+      ? `Auth rate limit: ${rateLimitInfo.allowedCount} allowed before ${rateLimitInfo.limitedCount} limited (limit=${rateLimitInfo.limit}, retry-after≈${rateLimitInfo.retryAfterSeconds}s)`
+      : null,
     `Test duration: ${durationSeconds.toFixed(2)}s`,
     `Total HTTP requests: ${totalRequests}`,
     `Estimated RPS: ${rps.toFixed(2)}`,
@@ -686,7 +808,7 @@ export function handleSummary(data) {
     '==========================================',
   ];
 
-  const summaryText = `${summaryLines.join('\n')}\n`;
+  const summaryText = `${summaryLines.filter(Boolean).join('\n')}\n`;
   return {
     stdout: summaryText,
     'performance/results.json': JSON.stringify(
@@ -697,6 +819,7 @@ export function handleSummary(data) {
         requests_per_minute: rpm,
         throughput_bytes_per_second: throughputBytesPerSecond,
         throughput_kib_per_second: throughputKibPerSecond,
+        rate_limit_verification: rateLimitInfo || null,
       },
       null,
       2,
