@@ -45,7 +45,7 @@ def create_app() -> Flask:
                 settings.cors_allow_headers_string()
             )
             response.headers["Access-Control-Allow-Methods"] = (
-                "GET,POST,PUT,DELETE,OPTIONS"
+                "GET,POST,PUT,DELETE,OPTIONS,PATCH"
             )
         return response
 

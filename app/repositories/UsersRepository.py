@@ -132,3 +132,10 @@ class UsersRepository:
         self.db.commit()
         self.db.refresh(user)
         return user
+
+    def UpdateCertificateName(self, user: User, *, name_for_certificate: str) -> User:
+        user.name_for_certificate = name_for_certificate
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
