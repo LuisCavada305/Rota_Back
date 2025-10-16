@@ -69,7 +69,9 @@ class AdminFormQuestionIn(BaseModel):
             if not any(option.is_correct for option in self.options):
                 raise ValueError("Marque pelo menos uma alternativa correta.")
             if self.type == "TRUE_OR_FALSE" and len(self.options) < 2:
-                raise ValueError("Perguntas de verdadeiro ou falso precisam de duas alternativas.")
+                raise ValueError(
+                    "Perguntas de verdadeiro ou falso precisam de duas alternativas."
+                )
         return self
 
 
@@ -121,7 +123,9 @@ class AdminTrailItemIn(BaseModel):
     def validate_form(self):
         if self.type == "FORM":
             if self.form is None:
-                raise ValueError("Itens do tipo Formulário precisam de dados do formulário.")
+                raise ValueError(
+                    "Itens do tipo Formulário precisam de dados do formulário."
+                )
         else:
             self.form = None
         return self

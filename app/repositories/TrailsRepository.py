@@ -113,18 +113,10 @@ class TrailsRepository:
         )
 
     def list_item_types(self) -> List[LkItemTypeORM]:
-        return (
-            self.db.query(LkItemTypeORM)
-            .order_by(LkItemTypeORM.code)
-            .all()
-        )
+        return self.db.query(LkItemTypeORM).order_by(LkItemTypeORM.code).all()
 
     def list_question_types(self) -> List[LkQuestionTypeORM]:
-        return (
-            self.db.query(LkQuestionTypeORM)
-            .order_by(LkQuestionTypeORM.code)
-            .all()
-        )
+        return self.db.query(LkQuestionTypeORM).order_by(LkQuestionTypeORM.code).all()
 
     def create_trail(
         self,
@@ -189,7 +181,9 @@ class TrailsRepository:
                 if type_code == "FORM":
                     form_payload = item_payload.get("form") or {}
                     if not form_payload:
-                        raise ValueError("Itens do tipo formulário precisam de dados do formulário.")
+                        raise ValueError(
+                            "Itens do tipo formulário precisam de dados do formulário."
+                        )
                     min_score_raw = form_payload.get("min_score_to_pass")
                     min_score_value = Decimal(str(min_score_raw or 70))
                     randomize_value = form_payload.get("randomize_questions")
@@ -199,18 +193,26 @@ class TrailsRepository:
                         title=form_payload.get("title"),
                         description=form_payload.get("description"),
                         min_score_to_pass=min_score_value,
-                        randomize_questions=bool(randomize_value)
-                        if randomize_value is not None
-                        else None,
+                        randomize_questions=(
+                            bool(randomize_value)
+                            if randomize_value is not None
+                            else None
+                        ),
                     )
                     self.db.add(form)
                     self.db.flush()
 
                     questions_payload = form_payload.get("questions") or []
                     if not questions_payload:
-                        raise ValueError("Formulários precisam de pelo menos uma pergunta.")
-                    for question_index, question_payload in enumerate(questions_payload):
-                        question_type_code = (question_payload.get("type") or "").upper()
+                        raise ValueError(
+                            "Formulários precisam de pelo menos uma pergunta."
+                        )
+                    for question_index, question_payload in enumerate(
+                        questions_payload
+                    ):
+                        question_type_code = (
+                            question_payload.get("type") or ""
+                        ).upper()
                         question_type_id = question_type_map.get(question_type_code)
                         if question_type_id is None:
                             raise ValueError(
@@ -223,7 +225,9 @@ class TrailsRepository:
                             prompt=question_payload.get("prompt"),
                             question_type_id=question_type_id,
                             required=question_payload.get("required"),
-                            order_index=question_payload.get("order_index", question_index),
+                            order_index=question_payload.get(
+                                "order_index", question_index
+                            ),
                             points=points_value,
                         )
                         self.db.add(question)
@@ -239,7 +243,9 @@ class TrailsRepository:
                                 question_id=question.id,
                                 option_text=option_payload.get("text"),
                                 is_correct=bool(option_payload.get("is_correct")),
-                                order_index=option_payload.get("order_index", option_index),
+                                order_index=option_payload.get(
+                                    "order_index", option_index
+                                ),
                             )
                             self.db.add(option)
 
