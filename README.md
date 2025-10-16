@@ -63,3 +63,21 @@ pytest -v --disable-warnings --maxfail=1
 
 Considere rodar os testes em CI antes de todo deploy. Há também targets no `makefile`
 para execução com `uvicorn`/`waitress` quando necessário.
+
+### Testes de performance (k6)
+
+O alvo `make k6` prepara e executa o teste de carga definido em
+`performance/k6/performance.test.js`. Por padrão, os cenários que exercitam o
+rate limit de login ficam desativados para evitar falhas decorrentes das
+respostas `429` esperadas. Basta rodar:
+
+```bash
+make k6
+```
+
+Caso seja necessário validar o comportamento do rate limit, habilite o cenário
+extra configurando a variável de ambiente `ENABLE_RATE_LIMIT_SCENARIOS`:
+
+```bash
+ENABLE_RATE_LIMIT_SCENARIOS=true make k6
+```
