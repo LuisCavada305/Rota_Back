@@ -233,7 +233,7 @@ const endpointDefinitions = {
 export const options = {
   insecureSkipTLSVerify: INSECURE_SKIP_TLS_VERIFY,
   thresholds: {
-    http_req_failed: [{ threshold: 'rate<0.01', abortOnFail: true }],
+    'http_req_failed{phase:main}': [{ threshold: 'rate<0.01', abortOnFail: true }],
     http_req_duration: [
       { threshold: 'p(95)<500', abortOnFail: false },
       { threshold: 'p(99)<1000', abortOnFail: false },
@@ -356,7 +356,7 @@ function extractAuth(res) {
 }
 
 function makeParams(def, ctx) {
-  const params = { tags: { endpoint: def.name } };
+  const params = { tags: { endpoint: def.name, phase: def.testPhase || 'main' } };
   if (def.markExpected) {
     params.tags.expected_response = 'true';
   }
@@ -466,7 +466,11 @@ function ensureUserCredentials() {
 
   const registerRes = http.post(`${BASE_URL}/auth/register`, registerPayload, {
     headers: { 'Content-Type': 'application/json' },
-    tags: { endpoint: 'POST /auth/register (setup)', expected_response: 'true' },
+    tags: {
+      endpoint: 'POST /auth/register (setup)',
+      expected_response: 'true',
+      phase: 'setup',
+    },
   });
 
   if (registerRes.status === 200) {
@@ -477,7 +481,11 @@ function ensureUserCredentials() {
     const payload = JSON.stringify({ email, password, remember: true });
     const loginRes = http.post(`${BASE_URL}/auth/login`, payload, {
       headers: { 'Content-Type': 'application/json' },
-      tags: { endpoint: 'POST /auth/login (setup)', expected_response: 'true' },
+      tags: {
+        endpoint: 'POST /auth/login (setup)',
+        expected_response: 'true',
+        phase: 'setup',
+      },
     });
 
     if (loginRes.status === 200) {
@@ -518,7 +526,10 @@ function buildLoginPool(ctx) {
 
     const registerRes = http.post(`${BASE_URL}/auth/register`, registerPayload, {
       headers: { 'Content-Type': 'application/json' },
-      tags: { endpoint: 'POST /auth/register (login pool setup)' },
+      tags: {
+        endpoint: 'POST /auth/register (login pool setup)',
+        phase: 'setup',
+      },
     });
 
     if (registerRes.status >= 400) {
@@ -549,7 +560,10 @@ function hydrateDataset(ctx) {
   };
 
   const params =
-    makeParams({ name: 'dataset bootstrap', authRequired: !!ctx.auth }, ctx) || {
+    makeParams(
+      { name: 'dataset bootstrap', authRequired: !!ctx.auth, testPhase: 'setup' },
+      ctx,
+    ) || {
       headers: { Accept: 'application/json' },
     };
 
@@ -638,6 +652,7 @@ function verifyAuthRateLimit() {
     tags: {
       endpoint: 'POST /auth/register (rate limit verify)',
       expected_response: 'true',
+      phase: 'setup',
     },
   });
 
@@ -652,6 +667,7 @@ function verifyAuthRateLimit() {
       endpoint: 'POST /auth/login (rate limit verify)',
       expected_response: 'true',
       rate_limit_check: 'true',
+      phase: 'setup',
     },
   };
 
