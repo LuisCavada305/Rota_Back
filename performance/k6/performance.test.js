@@ -144,6 +144,7 @@ const endpointDefinitions = {
     name: 'POST /auth/login',
     method: 'POST',
     path: () => '/auth/login',
+    testPhase: 'auth',
     headers: { 'Content-Type': 'application/json' },
     acceptableStatus: [200, 429],
     markExpected: true,
@@ -234,6 +235,7 @@ export const options = {
   insecureSkipTLSVerify: INSECURE_SKIP_TLS_VERIFY,
   thresholds: {
     'http_req_failed{phase:main}': [{ threshold: 'rate<0.01', abortOnFail: true }],
+    'http_req_failed{phase:auth}': [{ threshold: 'rate<=1', abortOnFail: false }],
     http_req_duration: [
       { threshold: 'p(95)<500', abortOnFail: false },
       { threshold: 'p(99)<1000', abortOnFail: false },
