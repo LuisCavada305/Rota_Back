@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
-import { Trend } from 'k6/metrics';
+import { Trend, Counter } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'https://127.0.0.1:8001';
 const AUTH_EMAIL = __ENV.AUTH_EMAIL || '';
@@ -37,6 +37,7 @@ function buildStages(targetRate) {
 
 const endpointLatency = new Trend('endpoint_duration_ms', true);
 const responseBodySize = new Trend('response_body_bytes', true);
+const endpointFailures = new Counter('endpoint_failures');
 const skipNotices = {};
 
 function scenario(definitionOverrides = {}) {
@@ -429,6 +430,11 @@ function requestEndpoint(key, ctx) {
   });
   if (!ok) {
     console.error(`${def.name} responded with status ${response.status}`);
+    endpointFailures.add(1, {
+      endpoint: def.name,
+      status: String(response.status),
+      phase: def.testPhase || 'main',
+    });
   }
 
   if (def.authRequired && response.headers['X-CSRF-Token']) {
@@ -794,6 +800,45 @@ export function handleSummary(data) {
   const throughputKibPerSecond = throughputBytesPerSecond / 1024;
 
   const rateLimitInfo = data.state?.rateLimitVerification;
+  const failureMetric = data.metrics?.endpoint_failures;
+
+  const parseTagKey = (key) => {
+    const parts = key.split(',');
+    const tags = {};
+    for (const part of parts) {
+      const [name, ...rest] = part.split(':');
+      if (!name) {
+        continue;
+      }
+      tags[name] = rest.join(':');
+    }
+    return tags;
+  };
+
+  let mainPhaseFailureLine = null;
+  let mainPhaseFailureDetails = [];
+
+  if (failureMetric?.submetrics) {
+    const breakdown = Object.entries(failureMetric.submetrics).map(([tagKey, metric]) => {
+      const tags = parseTagKey(tagKey);
+      return {
+        endpoint: tags.endpoint || 'unknown',
+        phase: tags.phase || 'main',
+        status: tags.status || 'unknown',
+        count: metric.values?.count || 0,
+      };
+    });
+
+    const mainBreakdown = breakdown
+      .filter((entry) => entry.phase === 'main' && entry.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    if (mainBreakdown.length > 0) {
+      const totalFailures = mainBreakdown.reduce((sum, entry) => sum + entry.count, 0);
+      mainPhaseFailureLine = `Main phase failures: ${totalFailures}`;
+      mainPhaseFailureDetails = mainBreakdown.slice(0, 5);
+    }
+  }
 
   const summaryLines = [
     '========== Performance Summary ==========',
@@ -805,6 +850,7 @@ export function handleSummary(data) {
     `Estimated RPS: ${rps.toFixed(2)}`,
     `Estimated RPM: ${rpm.toFixed(2)}`,
     `Throughput: ${throughputBytesPerSecond.toFixed(2)} B/s (${throughputKibPerSecond.toFixed(2)} KiB/s)`,
+    mainPhaseFailureLine,
     '==========================================',
   ];
 
@@ -820,6 +866,7 @@ export function handleSummary(data) {
         throughput_bytes_per_second: throughputBytesPerSecond,
         throughput_kib_per_second: throughputKibPerSecond,
         rate_limit_verification: rateLimitInfo || null,
+        main_phase_failures: mainPhaseFailureDetails,
       },
       null,
       2,
