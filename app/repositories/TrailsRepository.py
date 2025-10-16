@@ -28,12 +28,7 @@ class TrailsRepository:
     def list_all(self, offset: int, limit: int) -> Tuple[List[TrailsORM], int]:
         query = self.db.query(TrailsORM)
         total = query.count()
-        items = (
-            query.order_by(TrailsORM.name)
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+        items = query.order_by(TrailsORM.name).offset(offset).limit(limit).all()
         return items, total
 
     def get_trail(self, trail_id: int) -> TrailsORM | None:
@@ -111,11 +106,7 @@ class TrailsRepository:
         )
 
     def list_item_types(self) -> List[LkItemTypeORM]:
-        return (
-            self.db.query(LkItemTypeORM)
-            .order_by(LkItemTypeORM.code)
-            .all()
-        )
+        return self.db.query(LkItemTypeORM).order_by(LkItemTypeORM.code).all()
 
     def create_trail(
         self,

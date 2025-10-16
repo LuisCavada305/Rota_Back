@@ -157,7 +157,9 @@ def dashboard():
         {
             "id": trail.id,
             "name": trail.name,
-            "created_date": trail.created_date.isoformat() if trail.created_date else None,
+            "created_date": (
+                trail.created_date.isoformat() if trail.created_date else None
+            ),
             "sections": int(section_counts.get(trail.id, 0)),
             "items": int(item_counts.get(trail.id, 0)),
         }

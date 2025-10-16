@@ -52,7 +52,9 @@ def sign_session(payload: dict, expires_in: timedelta = timedelta(days=1)) -> st
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=JWT_ALG)
 
 
-def generate_password_reset_token(user: User, expires_in: timedelta = PASSWORD_RESET_TTL) -> str:
+def generate_password_reset_token(
+    user: User, expires_in: timedelta = PASSWORD_RESET_TTL
+) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user.user_id),
