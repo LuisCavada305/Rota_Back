@@ -165,6 +165,7 @@ const endpointDefinitions = {
     requires: ['dataset.trailId'],
     authRequired: true,
     requireCsrf: true,
+    testPhase: 'write',
   },
   user_trail_progress: {
     name: 'GET /user-trails/:trailId/progress',
@@ -200,6 +201,7 @@ const endpointDefinitions = {
     requires: ['dataset.trailId', 'dataset.itemId'],
     authRequired: true,
     requireCsrf: true,
+    testPhase: 'write',
     body: (ctx) => {
       const payload = {
         status: 'IN_PROGRESS',
@@ -221,6 +223,7 @@ const endpointDefinitions = {
     requires: ['dataset.trailId', 'dataset.formItemId', 'dataset.formQuestions'],
     authRequired: true,
     requireCsrf: true,
+    testPhase: 'write',
     body: (ctx) => JSON.stringify({
       duration_seconds: 30,
       answers: ctx.dataset.formQuestions.map((question) => ({
@@ -237,6 +240,7 @@ export const options = {
   thresholds: {
     'http_req_failed{phase:main}': [{ threshold: 'rate<0.01', abortOnFail: true }],
     'http_req_failed{phase:auth}': [{ threshold: 'rate<=1', abortOnFail: false }],
+    'http_req_failed{phase:write}': [{ threshold: 'rate<=1', abortOnFail: false }],
     http_req_duration: [
       { threshold: 'p(95)<500', abortOnFail: false },
       { threshold: 'p(99)<1000', abortOnFail: false },
@@ -829,6 +833,8 @@ export function handleSummary(data) {
 
   let mainPhaseFailureLine = null;
   let mainPhaseFailureDetails = [];
+  let writePhaseFailureLine = null;
+  let writePhaseFailureDetails = [];
 
   if (failureMetric?.submetrics) {
     const breakdown = Object.entries(failureMetric.submetrics).map(([tagKey, metric]) => {
@@ -850,6 +856,16 @@ export function handleSummary(data) {
       mainPhaseFailureLine = `Main phase failures: ${totalFailures}`;
       mainPhaseFailureDetails = mainBreakdown.slice(0, 5);
     }
+
+    const writeBreakdown = breakdown
+      .filter((entry) => entry.phase === 'write' && entry.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    if (writeBreakdown.length > 0) {
+      const totalFailures = writeBreakdown.reduce((sum, entry) => sum + entry.count, 0);
+      writePhaseFailureLine = `Write phase failures: ${totalFailures}`;
+      writePhaseFailureDetails = writeBreakdown.slice(0, 5);
+    }
   }
 
   const summaryLines = [
@@ -863,6 +879,7 @@ export function handleSummary(data) {
     `Estimated RPM: ${rpm.toFixed(2)}`,
     `Throughput: ${throughputBytesPerSecond.toFixed(2)} B/s (${throughputKibPerSecond.toFixed(2)} KiB/s)`,
     mainPhaseFailureLine,
+    writePhaseFailureLine,
     '==========================================',
   ];
 
@@ -879,6 +896,7 @@ export function handleSummary(data) {
         throughput_kib_per_second: throughputKibPerSecond,
         rate_limit_verification: rateLimitInfo || null,
         main_phase_failures: mainPhaseFailureDetails,
+        write_phase_failures: writePhaseFailureDetails,
       },
       null,
       2,
