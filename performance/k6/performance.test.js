@@ -803,14 +803,26 @@ export function handleSummary(data) {
   const failureMetric = data.metrics?.endpoint_failures;
 
   const parseTagKey = (key) => {
-    const parts = key.split(',');
+    if (!key) {
+      return {};
+    }
+    const match = key.match(/\{([^}]*)}$/);
+    const tagPortion = match ? match[1] : key;
+    if (!tagPortion) {
+      return {};
+    }
+
     const tags = {};
-    for (const part of parts) {
+    for (const rawPart of tagPortion.split(',')) {
+      const part = rawPart.trim();
+      if (!part) {
+        continue;
+      }
       const [name, ...rest] = part.split(':');
       if (!name) {
         continue;
       }
-      tags[name] = rest.join(':');
+      tags[name.trim()] = rest.join(':').trim();
     }
     return tags;
   };
