@@ -16,6 +16,8 @@ const WRITE_RATE = Number(
   __ENV.WRITE_RPS || Math.max(1, Math.round(DEFAULT_RATE / 4)),
 );
 const ENABLE_WRITE_SCENARIOS = (__ENV.ENABLE_WRITE_SCENARIOS || 'true').toLowerCase() !== 'false';
+const ENABLE_RATE_LIMIT_SCENARIOS =
+  (__ENV.ENABLE_RATE_LIMIT_SCENARIOS || 'false').toLowerCase() === 'true';
 const SESSION_COOKIE_NAME = __ENV.SESSION_COOKIE_NAME || 'rota_session';
 const CSRF_COOKIE_NAME = __ENV.CSRF_COOKIE_NAME || 'rota_csrf';
 const INSECURE_SKIP_TLS_VERIFY =
@@ -235,88 +237,98 @@ const endpointDefinitions = {
   },
 };
 
-export const options = {
-  insecureSkipTLSVerify: INSECURE_SKIP_TLS_VERIFY,
-  thresholds: {
-    'http_req_failed{phase:main}': [{ threshold: 'rate<0.01', abortOnFail: true }],
-    'http_req_failed{phase:auth}': [{ threshold: 'rate<=1', abortOnFail: false }],
-    'http_req_failed{phase:write}': [{ threshold: 'rate<=1', abortOnFail: false }],
-    http_req_duration: [
-      { threshold: 'p(95)<500', abortOnFail: false },
-      { threshold: 'p(99)<1000', abortOnFail: false },
-    ],
-    endpoint_duration_ms: [{ threshold: 'p(95)<450' }],
-  },
-  summaryTrendStats: ['avg', 'min', 'max', 'p(90)', 'p(95)', 'p(99)'],
-  scenarios: {
-    trails_showcase: scenario({ exec: 'trails_showcase', tags: { traffic: 'read' } }),
-    trails_list: scenario({ exec: 'trails_list', tags: { traffic: 'read' } }),
-    trails_detail: scenario({ exec: 'trails_detail', tags: { traffic: 'read' } }),
-    trails_sections: scenario({ exec: 'trails_sections', tags: { traffic: 'read' } }),
-    trails_section_items: scenario({
-      exec: 'trails_section_items',
-      tags: { traffic: 'read' },
-    }),
-    trails_sections_with_items: scenario({
-      exec: 'trails_sections_with_items',
-      tags: { traffic: 'read' },
-    }),
-    trails_included_items: scenario({
-      exec: 'trails_included_items',
-      tags: { traffic: 'read' },
-    }),
-    trails_requirements: scenario({
-      exec: 'trails_requirements',
-      tags: { traffic: 'read' },
-    }),
-    trails_audience: scenario({
-      exec: 'trails_audience',
-      tags: { traffic: 'read' },
-    }),
-    trails_learn: scenario({ exec: 'trails_learn', tags: { traffic: 'read' } }),
-    trail_item_detail: scenario({
-      exec: 'trail_item_detail',
-      tags: { traffic: 'read' },
-    }),
-    auth_login: scenario({
-      exec: 'auth_login',
-      targetRate: WRITE_RATE,
-      tags: { traffic: 'write' },
-    }),
-    user_trail_enroll: scenario({
-      exec: 'user_trail_enroll',
-      targetRate: WRITE_RATE,
-      gracefulStop: '0s',
-      tags: { traffic: 'write' },
-    }),
-    user_trail_progress: scenario({
-      exec: 'user_trail_progress',
-      tags: { traffic: 'read' },
-    }),
-    user_trail_items_progress: scenario({
-      exec: 'user_trail_items_progress',
-      tags: { traffic: 'read' },
-    }),
-    user_trail_sections_progress: scenario({
-      exec: 'user_trail_sections_progress',
-      tags: { traffic: 'read' },
-    }),
-    me_profile: scenario({ exec: 'me_profile', tags: { traffic: 'read' } }),
-  },
+const thresholdConfig = {
+  'http_req_failed{phase:main}': [{ threshold: 'rate<0.01', abortOnFail: true }],
+  'http_req_failed{phase:write}': [{ threshold: 'rate<=1', abortOnFail: false }],
+  http_req_duration: [
+    { threshold: 'p(95)<500', abortOnFail: false },
+    { threshold: 'p(99)<1000', abortOnFail: false },
+  ],
+  endpoint_duration_ms: [{ threshold: 'p(95)<450' }],
 };
 
+if (ENABLE_RATE_LIMIT_SCENARIOS) {
+  thresholdConfig['http_req_failed{phase:auth}'] = [{ threshold: 'rate<=1', abortOnFail: false }];
+}
+
+const scenarios = {
+  trails_showcase: scenario({ exec: 'trails_showcase', tags: { traffic: 'read' } }),
+  trails_list: scenario({ exec: 'trails_list', tags: { traffic: 'read' } }),
+  trails_detail: scenario({ exec: 'trails_detail', tags: { traffic: 'read' } }),
+  trails_sections: scenario({ exec: 'trails_sections', tags: { traffic: 'read' } }),
+  trails_section_items: scenario({
+    exec: 'trails_section_items',
+    tags: { traffic: 'read' },
+  }),
+  trails_sections_with_items: scenario({
+    exec: 'trails_sections_with_items',
+    tags: { traffic: 'read' },
+  }),
+  trails_included_items: scenario({
+    exec: 'trails_included_items',
+    tags: { traffic: 'read' },
+  }),
+  trails_requirements: scenario({
+    exec: 'trails_requirements',
+    tags: { traffic: 'read' },
+  }),
+  trails_audience: scenario({
+    exec: 'trails_audience',
+    tags: { traffic: 'read' },
+  }),
+  trails_learn: scenario({ exec: 'trails_learn', tags: { traffic: 'read' } }),
+  trail_item_detail: scenario({
+    exec: 'trail_item_detail',
+    tags: { traffic: 'read' },
+  }),
+  user_trail_enroll: scenario({
+    exec: 'user_trail_enroll',
+    targetRate: WRITE_RATE,
+    gracefulStop: '0s',
+    tags: { traffic: 'write' },
+  }),
+  user_trail_progress: scenario({
+    exec: 'user_trail_progress',
+    tags: { traffic: 'read' },
+  }),
+  user_trail_items_progress: scenario({
+    exec: 'user_trail_items_progress',
+    tags: { traffic: 'read' },
+  }),
+  user_trail_sections_progress: scenario({
+    exec: 'user_trail_sections_progress',
+    tags: { traffic: 'read' },
+  }),
+  me_profile: scenario({ exec: 'me_profile', tags: { traffic: 'read' } }),
+};
+
+if (ENABLE_RATE_LIMIT_SCENARIOS) {
+  scenarios.auth_login = scenario({
+    exec: 'auth_login',
+    targetRate: WRITE_RATE,
+    tags: { traffic: 'auth' },
+  });
+}
+
 if (ENABLE_WRITE_SCENARIOS) {
-  options.scenarios.trail_item_progress = scenario({
+  scenarios.trail_item_progress = scenario({
     exec: 'trail_item_progress',
     targetRate: WRITE_RATE,
     tags: { traffic: 'write' },
   });
-  options.scenarios.trail_form_submission = scenario({
+  scenarios.trail_form_submission = scenario({
     exec: 'trail_form_submission',
     targetRate: WRITE_RATE,
     tags: { traffic: 'write' },
   });
 }
+
+export const options = {
+  insecureSkipTLSVerify: INSECURE_SKIP_TLS_VERIFY,
+  thresholds: thresholdConfig,
+  summaryTrendStats: ['avg', 'min', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  scenarios,
+};
 
 function resolvePath(obj, path) {
   return path.split('.').reduce((acc, key) => {
@@ -744,8 +756,12 @@ function verifyAuthRateLimit() {
 export function setup() {
   const ctx = ensureUserCredentials();
   ctx.dataset = hydrateDataset(ctx);
-  buildLoginPool(ctx);
-  ctx.rateLimitVerification = verifyAuthRateLimit();
+  if (ENABLE_RATE_LIMIT_SCENARIOS) {
+    buildLoginPool(ctx);
+    ctx.rateLimitVerification = verifyAuthRateLimit();
+  } else {
+    ctx.rateLimitVerification = null;
+  }
 
   if (ctx.dataset.trailId && ctx.auth && ctx.auth.cookieHeader) {
     const enrollParams = makeParams(
@@ -870,9 +886,11 @@ export function handleSummary(data) {
 
   const summaryLines = [
     '========== Performance Summary ==========',
-    rateLimitInfo
-      ? `Auth rate limit: ${rateLimitInfo.allowedCount} allowed before ${rateLimitInfo.limitedCount} limited (limit=${rateLimitInfo.limit}, retry-after≈${rateLimitInfo.retryAfterSeconds}s)`
-      : null,
+    ENABLE_RATE_LIMIT_SCENARIOS
+      ? rateLimitInfo
+        ? `Auth rate limit: ${rateLimitInfo.allowedCount} allowed before ${rateLimitInfo.limitedCount} limited (limit=${rateLimitInfo.limit}, retry-after≈${rateLimitInfo.retryAfterSeconds}s)`
+        : 'Auth rate limit: verification unavailable'
+      : 'Auth rate limit: skipped (ENABLE_RATE_LIMIT_SCENARIOS=false)',
     `Test duration: ${durationSeconds.toFixed(2)}s`,
     `Total HTTP requests: ${totalRequests}`,
     `Estimated RPS: ${rps.toFixed(2)}`,
@@ -894,6 +912,7 @@ export function handleSummary(data) {
         requests_per_minute: rpm,
         throughput_bytes_per_second: throughputBytesPerSecond,
         throughput_kib_per_second: throughputKibPerSecond,
+        rate_limit_verification_enabled: ENABLE_RATE_LIMIT_SCENARIOS,
         rate_limit_verification: rateLimitInfo || null,
         main_phase_failures: mainPhaseFailureDetails,
         write_phase_failures: writePhaseFailureDetails,
