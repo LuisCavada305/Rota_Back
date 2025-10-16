@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import List, Tuple
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -10,7 +11,13 @@ from app.models.trail_requirements import TrailRequirements as TrailRequirements
 from app.models.trail_target_audience import (
     TrailTargetAudience as TrailTargetAudienceORM,
 )
+from app.models.forms import Form as FormORM
+from app.models.form_questions import FormQuestion as FormQuestionORM
+from app.models.form_question_options import (
+    FormQuestionOption as FormQuestionOptionORM,
+)
 from app.models.lk_item_type import LkItemType as LkItemTypeORM
+from app.models.lk_question_type import LkQuestionType as LkQuestionTypeORM
 
 
 class TrailsRepository:
@@ -106,7 +113,18 @@ class TrailsRepository:
         )
 
     def list_item_types(self) -> List[LkItemTypeORM]:
-        return self.db.query(LkItemTypeORM).order_by(LkItemTypeORM.code).all()
+        return (
+            self.db.query(LkItemTypeORM)
+            .order_by(LkItemTypeORM.code)
+            .all()
+        )
+
+    def list_question_types(self) -> List[LkQuestionTypeORM]:
+        return (
+            self.db.query(LkQuestionTypeORM)
+            .order_by(LkQuestionTypeORM.code)
+            .all()
+        )
 
     def create_trail(
         self,
@@ -130,6 +148,9 @@ class TrailsRepository:
         self.db.flush()
 
         item_type_map = {row.code.upper(): row.id for row in self.list_item_types()}
+        question_type_map = {
+            row.code.upper(): row.id for row in self.list_question_types()
+        }
 
         for index, section_payload in enumerate(sections):
             section_order = section_payload.get("order_index")
@@ -163,6 +184,64 @@ class TrailsRepository:
                     requires_completion=bool(item_payload.get("requires_completion")),
                 )
                 self.db.add(item)
+                self.db.flush()
+
+                if type_code == "FORM":
+                    form_payload = item_payload.get("form") or {}
+                    if not form_payload:
+                        raise ValueError("Itens do tipo formulário precisam de dados do formulário.")
+                    min_score_raw = form_payload.get("min_score_to_pass")
+                    min_score_value = Decimal(str(min_score_raw or 70))
+                    randomize_value = form_payload.get("randomize_questions")
+
+                    form = FormORM(
+                        trail_item_id=item.id,
+                        title=form_payload.get("title"),
+                        description=form_payload.get("description"),
+                        min_score_to_pass=min_score_value,
+                        randomize_questions=bool(randomize_value)
+                        if randomize_value is not None
+                        else None,
+                    )
+                    self.db.add(form)
+                    self.db.flush()
+
+                    questions_payload = form_payload.get("questions") or []
+                    if not questions_payload:
+                        raise ValueError("Formulários precisam de pelo menos uma pergunta.")
+                    for question_index, question_payload in enumerate(questions_payload):
+                        question_type_code = (question_payload.get("type") or "").upper()
+                        question_type_id = question_type_map.get(question_type_code)
+                        if question_type_id is None:
+                            raise ValueError(
+                                f"Tipo de questão '{question_type_code}' não cadastrado."
+                            )
+                        points_raw = question_payload.get("points")
+                        points_value = Decimal(str(points_raw or 0))
+                        question = FormQuestionORM(
+                            form_id=form.id,
+                            prompt=question_payload.get("prompt"),
+                            question_type_id=question_type_id,
+                            required=question_payload.get("required"),
+                            order_index=question_payload.get("order_index", question_index),
+                            points=points_value,
+                        )
+                        self.db.add(question)
+                        self.db.flush()
+
+                        options_payload = question_payload.get("options") or []
+                        if question_type_code != "ESSAY" and not options_payload:
+                            raise ValueError(
+                                "Questões objetivas precisam de alternativas cadastradas."
+                            )
+                        for option_index, option_payload in enumerate(options_payload):
+                            option = FormQuestionOptionORM(
+                                question_id=question.id,
+                                option_text=option_payload.get("text"),
+                                is_correct=bool(option_payload.get("is_correct")),
+                                order_index=option_payload.get("order_index", option_index),
+                            )
+                            self.db.add(option)
 
         self.db.commit()
         self.db.refresh(trail)

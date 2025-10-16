@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 from flask import Blueprint, jsonify, request, g
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from sqlalchemy import case, func
 
 from app.core.db import get_db
@@ -20,6 +20,81 @@ from app.services.security import enforce_csrf, require_roles
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
+class AdminFormOptionIn(BaseModel):
+    text: str = Field(..., min_length=1)
+    is_correct: bool = False
+    order_index: int | None = Field(default=None, ge=0)
+
+    @field_validator("text")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Preencha o texto da alternativa.")
+        return cleaned
+
+
+class AdminFormQuestionIn(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    type: str = Field(..., min_length=1)
+    required: bool = True
+    points: float = Field(default=1.0, ge=0)
+    order_index: int | None = Field(default=None, ge=0)
+    options: List[AdminFormOptionIn] = Field(default_factory=list)
+
+    @field_validator("prompt")
+    @classmethod
+    def strip_prompt(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Informe o enunciado da pergunta.")
+        return cleaned
+
+    @field_validator("type")
+    @classmethod
+    def normalize_question_type(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        allowed = {"ESSAY", "TRUE_OR_FALSE", "SINGLE_CHOICE"}
+        if normalized not in allowed:
+            raise ValueError("Tipo de pergunta inválido.")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_options(self):
+        if self.type == "ESSAY":
+            self.options = []
+        else:
+            if not self.options:
+                raise ValueError("Adicione alternativas para perguntas objetivas.")
+            if not any(option.is_correct for option in self.options):
+                raise ValueError("Marque pelo menos uma alternativa correta.")
+            if self.type == "TRUE_OR_FALSE" and len(self.options) < 2:
+                raise ValueError("Perguntas de verdadeiro ou falso precisam de duas alternativas.")
+        return self
+
+
+class AdminFormIn(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    min_score_to_pass: float = Field(default=70, ge=0)
+    randomize_questions: bool | None = None
+    questions: List[AdminFormQuestionIn] = Field(default_factory=list)
+
+    @field_validator("title", "description")
+    @classmethod
+    def strip_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+    @model_validator(mode="after")
+    def ensure_questions(self):
+        if not self.questions:
+            raise ValueError("O formulário precisa de pelo menos uma pergunta.")
+        return self
+
+
 class AdminTrailItemIn(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     type: str = Field(..., min_length=1, max_length=32)
@@ -27,6 +102,7 @@ class AdminTrailItemIn(BaseModel):
     duration_seconds: int | None = Field(default=None, ge=0)
     requires_completion: bool = False
     order_index: int | None = Field(default=None, ge=0)
+    form: AdminFormIn | None = None
 
     @field_validator("title", "type", "url")
     @classmethod
@@ -40,6 +116,15 @@ class AdminTrailItemIn(BaseModel):
     @classmethod
     def normalize_type(cls, value: str) -> str:
         return value.strip().upper()
+
+    @model_validator(mode="after")
+    def validate_form(self):
+        if self.type == "FORM":
+            if self.form is None:
+                raise ValueError("Itens do tipo Formulário precisam de dados do formulário.")
+        else:
+            self.form = None
+        return self
 
 
 class AdminTrailSectionIn(BaseModel):
@@ -103,6 +188,15 @@ def _item_type_label(code: str) -> str:
         "FORM": "Formulário",
     }
     return mapping.get(code, code.title())
+
+
+def _question_type_label(code: str) -> str:
+    mapping = {
+        "ESSAY": "Dissertativa",
+        "TRUE_OR_FALSE": "Verdadeiro ou falso",
+        "SINGLE_CHOICE": "Múltipla escolha",
+    }
+    return mapping.get(code, code.replace("_", " ").title())
 
 
 @bp.get("/dashboard")
@@ -256,6 +350,21 @@ def list_item_types():
     )
 
 
+@bp.get("/forms/question-types")
+def list_question_types():
+    db = get_db()
+    repo = TrailsRepository(db)
+    rows = repo.list_question_types()
+    return jsonify(
+        {
+            "question_types": [
+                {"code": row.code, "label": _question_type_label(row.code)}
+                for row in rows
+            ]
+        }
+    )
+
+
 @bp.post("/trails")
 def create_trail():
     data = request.get_json(silent=True) or {}
@@ -286,6 +395,9 @@ def create_trail():
     except ValueError as exc:
         db.rollback()
         return jsonify({"detail": str(exc)}), 400
+    except Exception:
+        db.rollback()
+        raise
 
     return (
         jsonify(
