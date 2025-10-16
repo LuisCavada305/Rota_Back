@@ -127,17 +127,19 @@ class TrailsRepository:
             created_date=date.today(),
         )
         self.db.add(trail)
+        self.db.flush()
 
         item_type_map = {row.code.upper(): row.id for row in self.list_item_types()}
 
         for index, section_payload in enumerate(sections):
             section_order = section_payload.get("order_index")
             section = TrailSectionsORM(
-                trail=trail,
+                trail_id=trail.id,
                 title=section_payload["title"],
                 order_index=section_order if section_order is not None else index,
             )
             self.db.add(section)
+            self.db.flush()
 
             items_payload = section_payload.get("items") or []
             for item_index, item_payload in enumerate(items_payload):
@@ -145,14 +147,19 @@ class TrailsRepository:
                 if type_code not in item_type_map:
                     raise ValueError(f"Tipo de item '{type_code}' não cadastrado.")
                 item_order = item_payload.get("order_index")
+                duration_value = item_payload.get("duration_seconds")
+                if isinstance(duration_value, str):
+                    duration_value = duration_value.strip()
+                    duration_value = int(duration_value) if duration_value else None
                 item = TrailItemsORM(
-                    trail=trail,
-                    section=section,
+                    trail_id=trail.id,
+                    section_id=section.id,
                     title=item_payload.get("title"),
                     url=item_payload.get("url"),
-                    duration_seconds=item_payload.get("duration_seconds"),
+                    duration_seconds=duration_value,
                     order_index=item_order if item_order is not None else item_index,
                     item_type_id=item_type_map[type_code],
+                    legacy_type=type_code,
                     requires_completion=bool(item_payload.get("requires_completion")),
                 )
                 self.db.add(item)

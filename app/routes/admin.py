@@ -90,6 +90,8 @@ class AdminTrailCreateIn(BaseModel):
 
 @bp.before_request
 def ensure_admin():
+    if request.method == "OPTIONS":
+        return None
     g.current_admin = require_roles("Admin")
 
 

@@ -4,11 +4,27 @@ from typing import Optional, TYPE_CHECKING
 from sqlalchemy import Boolean, Integer, String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
+from sqlalchemy.types import UserDefinedType
 
 if TYPE_CHECKING:
     from .trail_sections import TrailSections
     from .lk_item_type import LkItemType
     from .forms import Form
+
+
+class ItemTypeEnum(UserDefinedType):
+    def get_col_spec(self, **_kw):
+        return "item_type"
+
+    def bind_processor(self, dialect):
+        def process(value):
+            return value
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            return value
+        return process
 
 
 class TrailItems(Base):
@@ -22,6 +38,7 @@ class TrailItems(Base):
     )
     title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    legacy_type: Mapped[str] = mapped_column("type", ItemTypeEnum(), nullable=False)
 
     section_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("trail_sections.id", ondelete="SET NULL")
