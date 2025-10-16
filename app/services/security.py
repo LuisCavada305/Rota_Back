@@ -234,3 +234,10 @@ def get_current_user() -> User:
 
 
 FORBID = Forbidden(description="Sem permissão")
+
+
+def require_roles(*roles: str) -> User:
+    user = get_current_user()
+    if user.role_code not in roles:
+        raise FORBID
+    return user

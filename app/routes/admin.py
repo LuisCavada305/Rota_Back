@@ -1,0 +1,296 @@
+from __future__ import annotations
+
+from typing import List
+from flask import Blueprint, jsonify, request, g
+from pydantic import BaseModel, Field, ValidationError, field_validator
+from sqlalchemy import case, func
+
+from app.core.db import get_db
+from app.models.users import User
+from app.models.trails import Trails as TrailsORM
+from app.models.trail_sections import TrailSections as TrailSectionsORM
+from app.models.trail_items import TrailItems as TrailItemsORM
+from app.models.trail_certificates import TrailCertificates as TrailCertificatesORM
+from app.models.user_trails import UserTrails as UserTrailsORM
+from app.models.lk_enrollment_status import LkEnrollmentStatus as LkEnrollmentStatusORM
+from app.repositories.TrailsRepository import TrailsRepository
+from app.services.security import enforce_csrf, require_roles
+
+
+bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+
+class AdminTrailItemIn(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    type: str = Field(..., min_length=1, max_length=32)
+    url: str = Field(..., min_length=1)
+    duration_seconds: int | None = Field(default=None, ge=0)
+    requires_completion: bool = False
+    order_index: int | None = Field(default=None, ge=0)
+
+    @field_validator("title", "type", "url")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Este campo é obrigatório.")
+        return cleaned
+
+    @field_validator("type")
+    @classmethod
+    def normalize_type(cls, value: str) -> str:
+        return value.strip().upper()
+
+
+class AdminTrailSectionIn(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    order_index: int | None = Field(default=None, ge=0)
+    items: List[AdminTrailItemIn] = Field(default_factory=list)
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Informe um título para a seção.")
+        return cleaned
+
+
+class AdminTrailCreateIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    thumbnail_url: str = Field(..., min_length=1)
+    description: str | None = None
+    author: str | None = None
+    sections: List[AdminTrailSectionIn] = Field(default_factory=list)
+
+    @field_validator("name", "thumbnail_url")
+    @classmethod
+    def strip_required(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Este campo é obrigatório.")
+        return cleaned
+
+    @field_validator("author")
+    @classmethod
+    def normalize_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+    @field_validator("description")
+    @classmethod
+    def strip_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+
+@bp.before_request
+def ensure_admin():
+    g.current_admin = require_roles("Admin")
+
+
+def _item_type_label(code: str) -> str:
+    mapping = {
+        "VIDEO": "Vídeo",
+        "DOC": "Documento",
+        "PDF": "PDF",
+        "FORM": "Formulário",
+    }
+    return mapping.get(code, code.title())
+
+
+@bp.get("/dashboard")
+def dashboard():
+    db = get_db()
+
+    total_users = db.query(func.count(User.user_id)).scalar() or 0
+    total_trails = db.query(func.count(TrailsORM.id)).scalar() or 0
+    total_enrollments = db.query(func.count(UserTrailsORM.id)).scalar() or 0
+    total_certificates = db.query(func.count(TrailCertificatesORM.id)).scalar() or 0
+
+    enrollment_rows = (
+        db.query(LkEnrollmentStatusORM.code, func.count(UserTrailsORM.id))
+        .join(UserTrailsORM, UserTrailsORM.status_id == LkEnrollmentStatusORM.id)
+        .group_by(LkEnrollmentStatusORM.code)
+        .all()
+    )
+    enrollment_by_status = {
+        (code or "UNKNOWN"): int(count or 0) for code, count in enrollment_rows
+    }
+    unknown_enrollments = (
+        db.query(func.count(UserTrailsORM.id))
+        .filter(UserTrailsORM.status_id.is_(None))
+        .scalar()
+        or 0
+    )
+    if unknown_enrollments:
+        enrollment_by_status["UNDEFINED"] = int(unknown_enrollments)
+
+    section_counts = {
+        trail_id: count
+        for trail_id, count in db.query(
+            TrailSectionsORM.trail_id, func.count(TrailSectionsORM.id)
+        )
+        .group_by(TrailSectionsORM.trail_id)
+        .all()
+    }
+    item_counts = {
+        trail_id: count
+        for trail_id, count in db.query(
+            TrailItemsORM.trail_id, func.count(TrailItemsORM.id)
+        )
+        .group_by(TrailItemsORM.trail_id)
+        .all()
+    }
+
+    recent_trails = (
+        db.query(TrailsORM)
+        .order_by(TrailsORM.created_date.desc().nullslast(), TrailsORM.id.desc())
+        .limit(5)
+        .all()
+    )
+    recent_trails_payload = [
+        {
+            "id": trail.id,
+            "name": trail.name,
+            "created_date": trail.created_date.isoformat() if trail.created_date else None,
+            "sections": int(section_counts.get(trail.id, 0)),
+            "items": int(item_counts.get(trail.id, 0)),
+        }
+        for trail in recent_trails
+    ]
+
+    recent_certificates = (
+        db.query(
+            TrailCertificatesORM.id,
+            TrailCertificatesORM.issued_at,
+            User.name_for_certificate,
+            User.username,
+            TrailsORM.name.label("trail_name"),
+        )
+        .join(User, User.user_id == TrailCertificatesORM.user_id)
+        .join(TrailsORM, TrailsORM.id == TrailCertificatesORM.trail_id)
+        .order_by(TrailCertificatesORM.issued_at.desc())
+        .limit(5)
+        .all()
+    )
+    recent_certificates_payload = [
+        {
+            "id": cert.id,
+            "issued_at": cert.issued_at.isoformat(),
+            "user": cert.name_for_certificate or cert.username,
+            "trail": cert.trail_name,
+        }
+        for cert in recent_certificates
+    ]
+
+    top_trails = (
+        db.query(
+            TrailsORM.id,
+            TrailsORM.name,
+            func.count(UserTrailsORM.id).label("enrollments"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (LkEnrollmentStatusORM.code == "COMPLETED", 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("completed"),
+        )
+        .outerjoin(UserTrailsORM, UserTrailsORM.trail_id == TrailsORM.id)
+        .outerjoin(
+            LkEnrollmentStatusORM, UserTrailsORM.status_id == LkEnrollmentStatusORM.id
+        )
+        .group_by(TrailsORM.id, TrailsORM.name)
+        .order_by(func.count(UserTrailsORM.id).desc(), TrailsORM.name)
+        .limit(5)
+        .all()
+    )
+    top_trails_payload = [
+        {
+            "id": row.id,
+            "name": row.name,
+            "enrollments": int(row.enrollments or 0),
+            "completed": int(row.completed or 0),
+        }
+        for row in top_trails
+    ]
+
+    return jsonify(
+        {
+            "summary": {
+                "total_users": int(total_users),
+                "total_trails": int(total_trails),
+                "total_enrollments": int(total_enrollments),
+                "total_certificates": int(total_certificates),
+            },
+            "enrollment_by_status": enrollment_by_status,
+            "recent_trails": recent_trails_payload,
+            "recent_certificates": recent_certificates_payload,
+            "top_trails": top_trails_payload,
+        }
+    )
+
+
+@bp.get("/trails/item-types")
+def list_item_types():
+    db = get_db()
+    repo = TrailsRepository(db)
+    rows = repo.list_item_types()
+    return jsonify(
+        {
+            "item_types": [
+                {"code": row.code, "label": _item_type_label(row.code)} for row in rows
+            ]
+        }
+    )
+
+
+@bp.post("/trails")
+def create_trail():
+    data = request.get_json(silent=True) or {}
+    try:
+        payload = AdminTrailCreateIn.model_validate(data)
+    except ValidationError as exc:
+        return jsonify({"detail": exc.errors()}), 422
+
+    enforce_csrf()
+
+    db = get_db()
+    repo = TrailsRepository(db)
+    admin = g.current_admin
+
+    sections_payload = [
+        section.model_dump(mode="python") for section in payload.sections
+    ]
+
+    try:
+        trail = repo.create_trail(
+            name=payload.name,
+            thumbnail_url=payload.thumbnail_url,
+            description=payload.description,
+            author=payload.author,
+            created_by=getattr(admin, "user_id", None),
+            sections=sections_payload,
+        )
+    except ValueError as exc:
+        db.rollback()
+        return jsonify({"detail": str(exc)}), 400
+
+    return (
+        jsonify(
+            {
+                "trail": {
+                    "id": trail.id,
+                    "name": trail.name,
+                }
+            }
+        ),
+        201,
+    )

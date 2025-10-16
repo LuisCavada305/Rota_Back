@@ -7,3 +7,4 @@ certs/
 results.json
 metric.json
 db_results.json
+*.sql
