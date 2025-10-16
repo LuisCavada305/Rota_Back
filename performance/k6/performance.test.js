@@ -10,6 +10,7 @@ const DEFAULT_RATE = Number(__ENV.TARGET_RPS || 5);
 const DEFAULT_DURATION = __ENV.TEST_DURATION || '2m';
 const WARMUP_DURATION = __ENV.WARMUP_DURATION || '30s';
 const COOLDOWN_DURATION = __ENV.COOLDOWN_DURATION || '30s';
+const FINAL_STAGE_DURATION = '15s';
 const DEFAULT_VUS = Number(__ENV.PRE_ALLOCATED_VUS || 20);
 const MAX_VUS = Number(__ENV.MAX_VUS || Math.max(DEFAULT_VUS * 4, DEFAULT_VUS + 10));
 const WRITE_RATE = Number(
@@ -19,12 +20,26 @@ const ENABLE_WRITE_SCENARIOS = (__ENV.ENABLE_WRITE_SCENARIOS || 'true').toLowerC
 const ENABLE_RATE_LIMIT_SCENARIOS =
   (__ENV.ENABLE_RATE_LIMIT_SCENARIOS || 'false').toLowerCase() === 'true';
 const SESSION_COOKIE_NAME = __ENV.SESSION_COOKIE_NAME || 'rota_session';
-const CSRF_COOKIE_NAME = __ENV.CSRF_COOKIE_NAME || 'rota_csrf';
+const CSRF_COOKIE_NAME = __ENV.CSRF_COOKIE_NAME || 'rota_csrftoken';
+const SESSION_COOKIE_CANDIDATES = buildCookieCandidates(
+  SESSION_COOKIE_NAME,
+  __ENV.SESSION_COOKIE_ALIASES,
+  ['rota_session', 'sessionid', 'session'],
+);
+const CSRF_COOKIE_CANDIDATES = buildCookieCandidates(
+  CSRF_COOKIE_NAME,
+  __ENV.CSRF_COOKIE_ALIASES,
+  ['rota_csrftoken', 'rota_csrf', 'csrftoken', 'csrf_token', 'xsrf-token', 'xsrftoken'],
+);
 const INSECURE_SKIP_TLS_VERIFY =
   (__ENV.INSECURE_SKIP_TLS_VERIFY || 'true').toLowerCase() !== 'false';
 const RATE_LIMIT_MAX_ATTEMPTS = Number(__ENV.AUTH_RATE_LIMIT_MAX_ATTEMPTS || 10);
 const RATE_LIMIT_WINDOW_SECONDS = Number(__ENV.AUTH_RATE_LIMIT_WINDOW_SECONDS || 60);
 const LOGIN_USER_POOL = Number(__ENV.LOGIN_USER_POOL || 0);
+const WARMUP_SECONDS = durationToSeconds(WARMUP_DURATION);
+const DEFAULT_SECONDS = durationToSeconds(DEFAULT_DURATION);
+const COOLDOWN_SECONDS = durationToSeconds(COOLDOWN_DURATION);
+const FINAL_STAGE_SECONDS = durationToSeconds(FINAL_STAGE_DURATION);
 
 function buildStages(targetRate) {
   const warmupTarget = Math.max(1, Math.round(targetRate * 0.5));
@@ -33,7 +48,7 @@ function buildStages(targetRate) {
     { duration: WARMUP_DURATION, target: warmupTarget },
     { duration: DEFAULT_DURATION, target: targetRate },
     { duration: COOLDOWN_DURATION, target: coolTarget },
-    { duration: '15s', target: 0 },
+    { duration: FINAL_STAGE_DURATION, target: 0 },
   ];
 }
 
@@ -41,6 +56,65 @@ const endpointLatency = new Trend('endpoint_duration_ms', true);
 const responseBodySize = new Trend('response_body_bytes', true);
 const endpointFailures = new Counter('endpoint_failures');
 const skipNotices = {};
+
+function durationToSeconds(input) {
+  if (typeof input === 'number' && Number.isFinite(input)) {
+    return input;
+  }
+  if (typeof input !== 'string') {
+    return 0;
+  }
+  const raw = input.trim();
+  if (!raw) {
+    return 0;
+  }
+  const match = raw.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/i);
+  if (!match) {
+    const fallback = Number(raw);
+    return Number.isFinite(fallback) ? fallback : 0;
+  }
+  const value = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  switch (unit) {
+    case 'ms':
+      return value / 1000;
+    case 's':
+      return value;
+    case 'm':
+      return value * 60;
+    case 'h':
+      return value * 3600;
+    default:
+      return value;
+  }
+}
+
+function buildCookieCandidates(primaryName, envList, fallback = []) {
+  const parts = [];
+  if (primaryName) {
+    parts.push(primaryName);
+  }
+  if (envList) {
+    parts.push(
+      ...String(envList)
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+  }
+  parts.push(...fallback);
+  const seen = new Set();
+  const result = [];
+  for (const name of parts) {
+    const lower = name.toLowerCase();
+    if (seen.has(lower)) {
+      continue;
+    }
+    seen.add(lower);
+    result.push(name);
+  }
+  return result;
+}
 
 function scenario(definitionOverrides = {}) {
   const targetRate = definitionOverrides.targetRate || DEFAULT_RATE;
@@ -347,28 +421,113 @@ function noteSkip(key, reason) {
   console.warn(`Skipping ${endpointDefinitions[key].name}: ${reason}`);
 }
 
-function cookieFromResponse(res, cookieName) {
-  const cookie = res.cookies?.[cookieName];
-  if (!cookie || cookie.length === 0) {
+function cookieFromResponse(res, primaryName, candidates = [], predicate = null) {
+  const cookies = res.cookies || {};
+  const searchOrder = [];
+  if (primaryName) {
+    searchOrder.push(primaryName);
+  }
+  if (Array.isArray(candidates)) {
+    searchOrder.push(...candidates);
+  }
+
+  const seen = new Set();
+  for (const name of searchOrder) {
+    if (!name) {
+      continue;
+    }
+    const lower = name.toLowerCase();
+    if (seen.has(lower)) {
+      continue;
+    }
+    seen.add(lower);
+    const direct = cookies[name];
+    if (direct && direct.length > 0) {
+      return { name, value: direct[direct.length - 1].value };
+    }
+    const matchedKey = Object.keys(cookies).find((key) => key.toLowerCase() === lower);
+    if (matchedKey) {
+      const values = cookies[matchedKey];
+      if (values && values.length > 0) {
+        return { name: matchedKey, value: values[values.length - 1].value };
+      }
+    }
+  }
+
+  if (typeof predicate === 'function') {
+    for (const [name, values] of Object.entries(cookies)) {
+      if (!values || values.length === 0) {
+        continue;
+      }
+      if (predicate(name)) {
+        return { name, value: values[values.length - 1].value };
+      }
+    }
+  }
+
+  return null;
+}
+
+function headerFromResponse(headers, names = []) {
+  if (!headers) {
     return '';
   }
-  return cookie[cookie.length - 1].value;
+  const normalized = {};
+  for (const [key, value] of Object.entries(headers)) {
+    normalized[key.toLowerCase()] = value;
+  }
+  for (const name of names) {
+    if (!name) {
+      continue;
+    }
+    if (headers[name]) {
+      return headers[name];
+    }
+    const lower = name.toLowerCase();
+    if (normalized[lower]) {
+      return normalized[lower];
+    }
+  }
+  return '';
 }
 
 function extractAuth(res) {
-  const sessionCookie = cookieFromResponse(res, SESSION_COOKIE_NAME);
-  const csrfCookie = cookieFromResponse(res, CSRF_COOKIE_NAME);
+  const sessionCookie = cookieFromResponse(
+    res,
+    SESSION_COOKIE_NAME,
+    SESSION_COOKIE_CANDIDATES,
+    (name) => name.toLowerCase().includes('session'),
+  );
+  const csrfCookie = cookieFromResponse(
+    res,
+    CSRF_COOKIE_NAME,
+    CSRF_COOKIE_CANDIDATES,
+    (name) => {
+      const lower = name.toLowerCase();
+      return lower.includes('csrf') || lower.includes('xsrf');
+    },
+  );
   const cookieParts = [];
-  if (sessionCookie) {
-    cookieParts.push(`${SESSION_COOKIE_NAME}=${sessionCookie}`);
+  if (sessionCookie?.value) {
+    cookieParts.push(`${sessionCookie.name}=${sessionCookie.value}`);
   }
-  if (csrfCookie) {
-    cookieParts.push(`${CSRF_COOKIE_NAME}=${csrfCookie}`);
+  if (csrfCookie?.value) {
+    cookieParts.push(`${csrfCookie.name}=${csrfCookie.value}`);
   }
-  const csrfHeader = res.headers['X-CSRF-Token'] || res.headers['x-csrf-token'] || csrfCookie;
+  const csrfHeader =
+    headerFromResponse(res.headers, [
+      'X-CSRF-Token',
+      'X-CSRFToken',
+      'X-XSRF-TOKEN',
+      'x-csrf-token',
+      'x-csrftoken',
+      'x-xsrf-token',
+    ]) || csrfCookie?.value || '';
   return {
-    sessionCookie,
-    csrfCookie,
+    sessionCookie: sessionCookie?.value || '',
+    sessionCookieName: sessionCookie?.name || '',
+    csrfCookie: csrfCookie?.value || '',
+    csrfCookieName: csrfCookie?.name || '',
     csrfToken: csrfHeader,
     cookieHeader: cookieParts.join('; '),
   };
@@ -813,6 +972,12 @@ export function handleSummary(data) {
   const totalRequests = data.metrics?.http_reqs?.values?.count || 0;
   const rps = durationSeconds ? totalRequests / durationSeconds : 0;
   const rpm = rps * 60;
+  const steadyStateSeconds = DEFAULT_SECONDS || durationSeconds;
+  const steadyStateRps = steadyStateSeconds ? totalRequests / steadyStateSeconds : 0;
+  const nonSteadySeconds = WARMUP_SECONDS + COOLDOWN_SECONDS + FINAL_STAGE_SECONDS;
+  const nonSteadyShare = durationSeconds
+    ? Math.min(100, Math.max(0, (nonSteadySeconds / durationSeconds) * 100))
+    : 0;
   const totalBytesReceived = data.metrics?.data_received?.values?.sum || 0;
   const throughputBytesPerSecond = durationSeconds
     ? totalBytesReceived / durationSeconds
@@ -895,6 +1060,12 @@ export function handleSummary(data) {
     `Total HTTP requests: ${totalRequests}`,
     `Estimated RPS: ${rps.toFixed(2)}`,
     `Estimated RPM: ${rpm.toFixed(2)}`,
+    steadyStateSeconds
+      ? `Approx steady-state RPS (main stage): ${steadyStateRps.toFixed(2)}`
+      : null,
+    durationSeconds
+      ? `Warmup/cooldown share: ${nonSteadyShare.toFixed(1)}% of test time`
+      : null,
     `Throughput: ${throughputBytesPerSecond.toFixed(2)} B/s (${throughputKibPerSecond.toFixed(2)} KiB/s)`,
     mainPhaseFailureLine,
     writePhaseFailureLine,
@@ -916,6 +1087,10 @@ export function handleSummary(data) {
         rate_limit_verification: rateLimitInfo || null,
         main_phase_failures: mainPhaseFailureDetails,
         write_phase_failures: writePhaseFailureDetails,
+        steady_state_seconds: steadyStateSeconds,
+        steady_state_rps: steadyStateRps,
+        non_steady_phase_seconds: nonSteadySeconds,
+        non_steady_phase_share_percent: nonSteadyShare,
       },
       null,
       2,
