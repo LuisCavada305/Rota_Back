@@ -215,9 +215,9 @@ def list_trails():
                     "id": row.id,
                     "name": row.name,
                     "author": row.author,
-                    "created_date": row.created_date.isoformat()
-                    if row.created_date
-                    else None,
+                    "created_date": (
+                        row.created_date.isoformat() if row.created_date else None
+                    ),
                 }
                 for row in rows
             ]

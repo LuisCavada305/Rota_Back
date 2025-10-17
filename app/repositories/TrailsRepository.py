@@ -312,11 +312,7 @@ class TrailsRepository:
         return trail
 
     def list_admin_trails(self) -> List[TrailsORM]:
-        return (
-            self.db.query(TrailsORM)
-            .order_by(TrailsORM.name)
-            .all()
-        )
+        return self.db.query(TrailsORM).order_by(TrailsORM.name).all()
 
     def get_trail_builder_payload(self, trail_id: int) -> dict | None:
         trail = (
@@ -403,9 +399,11 @@ class TrailsRepository:
                         "title": form.title or "",
                         "description": form.description or "",
                         "min_score_to_pass": float(form.min_score_to_pass or 70),
-                        "randomize_questions": bool(randomize_value)
-                        if randomize_value is not None
-                        else False,
+                        "randomize_questions": (
+                            bool(randomize_value)
+                            if randomize_value is not None
+                            else False
+                        ),
                         "questions": questions_payload,
                     }
                 items_payload.append(item_payload)
