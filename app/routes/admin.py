@@ -203,6 +203,38 @@ def _question_type_label(code: str) -> str:
     return mapping.get(code, code.replace("_", " ").title())
 
 
+@bp.get("/trails")
+def list_trails():
+    db = get_db()
+    repo = TrailsRepository(db)
+    rows = repo.list_admin_trails()
+    return jsonify(
+        {
+            "trails": [
+                {
+                    "id": row.id,
+                    "name": row.name,
+                    "author": row.author,
+                    "created_date": row.created_date.isoformat()
+                    if row.created_date
+                    else None,
+                }
+                for row in rows
+            ]
+        }
+    )
+
+
+@bp.get("/trails/<int:trail_id>")
+def get_trail(trail_id: int):
+    db = get_db()
+    repo = TrailsRepository(db)
+    payload = repo.get_trail_builder_payload(trail_id)
+    if not payload:
+        return jsonify({"detail": "Rota não encontrada."}), 404
+    return jsonify({"trail": payload})
+
+
 @bp.get("/dashboard")
 def dashboard():
     db = get_db()
@@ -414,3 +446,41 @@ def create_trail():
         ),
         201,
     )
+
+
+@bp.put("/trails/<int:trail_id>")
+def update_trail(trail_id: int):
+    data = request.get_json(silent=True) or {}
+    try:
+        payload = AdminTrailCreateIn.model_validate(data)
+    except ValidationError as exc:
+        return jsonify({"detail": exc.errors()}), 422
+
+    enforce_csrf()
+
+    db = get_db()
+    repo = TrailsRepository(db)
+    sections_payload = [
+        section.model_dump(mode="python") for section in payload.sections
+    ]
+
+    try:
+        trail = repo.update_trail(
+            trail_id=trail_id,
+            name=payload.name,
+            thumbnail_url=payload.thumbnail_url,
+            description=payload.description,
+            author=payload.author,
+            sections=sections_payload,
+        )
+    except LookupError:
+        db.rollback()
+        return jsonify({"detail": "Rota não encontrada."}), 404
+    except ValueError as exc:
+        db.rollback()
+        return jsonify({"detail": str(exc)}), 400
+    except Exception:
+        db.rollback()
+        raise
+
+    return jsonify({"trail": {"id": trail.id, "name": trail.name}})
