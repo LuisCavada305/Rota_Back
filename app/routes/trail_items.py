@@ -23,6 +23,7 @@ from app.models.trail_items import TrailItems as TrailItemsORM
 from app.repositories.UserTrailsRepository import UserTrailsRepository
 from app.repositories.UserProgressRepository import UserProgressRepository
 from app.services.security import enforce_csrf, get_current_user
+from app.routes import format_validation_error
 
 
 bp = Blueprint("trail_items", __name__, url_prefix="/trails")
@@ -359,7 +360,7 @@ def submit_form(trail_id: int, item_id: int):
     try:
         payload = FormSubmissionIn.model_validate(payload_raw)
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     enforce_csrf()
     user = get_current_user()

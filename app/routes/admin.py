@@ -15,6 +15,7 @@ from app.models.user_trails import UserTrails as UserTrailsORM
 from app.models.lk_enrollment_status import LkEnrollmentStatus as LkEnrollmentStatusORM
 from app.repositories.TrailsRepository import TrailsRepository
 from app.services.security import enforce_csrf, require_roles
+from app.routes import format_validation_error
 
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -407,7 +408,7 @@ def create_trail():
     try:
         payload = AdminTrailCreateIn.model_validate(data)
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     enforce_csrf()
 
@@ -454,7 +455,7 @@ def update_trail(trail_id: int):
     try:
         payload = AdminTrailCreateIn.model_validate(data)
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     enforce_csrf()
 

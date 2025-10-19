@@ -10,6 +10,7 @@ from app.core.settings import settings
 from app.models.users import User, UserOut
 from app.models.lookups import LkRole, LkSex, LkColor
 from app.repositories.UsersRepository import UsersRepository
+from app.routes import format_validation_error
 
 
 bp = Blueprint("me", __name__)
@@ -122,7 +123,7 @@ def update_profile():
     try:
         payload = ProfileUpdateIn.model_validate(request.get_json(silent=True) or {})
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     db, user = _load_profile_user(user_id)
     if not user:

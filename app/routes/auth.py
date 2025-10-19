@@ -34,6 +34,7 @@ from app.services.email import (
     send_password_reset_email,
     send_password_changed_notification,
 )
+from app.routes import format_validation_error
 
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -73,7 +74,7 @@ def register():
     try:
         payload: RegisterIn = _validate_payload(RegisterIn)
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     limited = _rate_limited_response(
         "register", identifier=f"{payload.email}:{payload.username}"
@@ -123,7 +124,7 @@ def forgot_password():
     try:
         payload: PasswordResetRequestIn = _validate_payload(PasswordResetRequestIn)
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     limited = _rate_limited_response("password_reset", identifier=payload.email)
     if limited:
@@ -147,7 +148,7 @@ def reset_password():
     try:
         payload: PasswordResetConfirmIn = _validate_payload(PasswordResetConfirmIn)
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     try:
         token_data = decode_password_reset_token(payload.token)
@@ -173,7 +174,7 @@ def login():
     try:
         payload: LoginIn = _validate_payload(LoginIn)
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     limited = _rate_limited_response("login", identifier=payload.email)
     if limited:

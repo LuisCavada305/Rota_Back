@@ -16,6 +16,7 @@ from app.repositories.TrailsRepository import TrailsRepository
 from app.repositories.UserProgressRepository import UserProgressRepository
 from app.repositories.UserTrailsRepository import UserTrailsRepository
 from app.services.security import get_current_user, enforce_csrf, get_current_user_id
+from app.routes import format_validation_error
 
 
 bp = Blueprint("trails", __name__, url_prefix="/trails")
@@ -302,7 +303,7 @@ def set_item_progress(trail_id: int, item_id: int):
     try:
         body = ItemProgressIn.model_validate(data)
     except ValidationError as exc:
-        return jsonify({"detail": exc.errors()}), 422
+        return jsonify({"detail": format_validation_error(exc)}), 422
 
     enforce_csrf()
     user = get_current_user()
