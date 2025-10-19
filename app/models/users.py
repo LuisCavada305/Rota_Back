@@ -13,15 +13,95 @@ from app.models.roles import RolesEnum  # RolesEnum(str, Enum): Admin/User/Manag
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
-from app.models.lookups import LkSex, LkRole
+from app.models.lookups import LkSex, LkRole, LkColor
 
 
 # ---- Enums ----
 class Sex(str, Enum):
-    Male = "M"
-    Female = "F"
-    Other = "O"
-    NotSpecified = "N"
+    ManCis = "MC"
+    ManTrans = "MT"
+    WomanCis = "WC"
+    WomanTrans = "WT"
+    Other = "OT"
+    NotSpecified = "NS"
+
+    @classmethod
+    def _normalize(cls, value: str) -> str:
+        return (
+            value.strip()
+            .replace(" ", "")
+            .replace("-", "")
+            .replace("_", "")
+            .upper()
+        )
+
+    @classmethod
+    def parse(cls, value) -> "Sex":
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, str):
+            raise ValueError("Valor de sexo inválido.")
+        key = cls._normalize(value)
+        alias_map = {
+            cls.ManCis.value: cls.ManCis,
+            "M": cls.ManCis,
+            "MALE": cls.ManCis,
+            "MAN": cls.ManCis,
+            "HOMEM": cls.ManCis,
+            "MANCIS": cls.ManCis,
+            "HOMEMCIS": cls.ManCis,
+            cls.ManTrans.value: cls.ManTrans,
+            "MT": cls.ManTrans,
+            "MANT": cls.ManTrans,
+            "HOMEMTRANS": cls.ManTrans,
+            cls.WomanCis.value: cls.WomanCis,
+            "F": cls.WomanCis,
+            "FEMALE": cls.WomanCis,
+            "WOMAN": cls.WomanCis,
+            "MULHER": cls.WomanCis,
+            "MULHERCIS": cls.WomanCis,
+            "FEMININO": cls.WomanCis,
+            cls.WomanTrans.value: cls.WomanTrans,
+            "WT": cls.WomanTrans,
+            "MULHERTRANS": cls.WomanTrans,
+            "WOMANTRANS": cls.WomanTrans,
+            cls.Other.value: cls.Other,
+            "O": cls.Other,
+            "OTHER": cls.Other,
+            "OUTRO": cls.Other,
+            "OUTRA": cls.Other,
+            "OT": cls.Other,
+            cls.NotSpecified.value: cls.NotSpecified,
+            "N": cls.NotSpecified,
+            "NS": cls.NotSpecified,
+            "NAOESPECIFICADO": cls.NotSpecified,
+            "NAOESPECIFICO": cls.NotSpecified,
+            "NAOESPECIFICADA": cls.NotSpecified,
+            "NOTSPECIFIED": cls.NotSpecified,
+        }
+        sex = alias_map.get(key)
+        if sex is None:
+            raise ValueError(f"Valor de sexo desconhecido: {value!r}")
+        return sex
+
+    @classmethod
+    def from_db_code(cls, value: str | None) -> "Sex":
+        if value is None:
+            return cls.NotSpecified
+        try:
+            return cls.parse(value)
+        except ValueError:
+            return cls.NotSpecified
+
+
+class SkinColor(str, Enum):
+    White = "BR"
+    Black = "PR"
+    Brown = "PA"
+    Yellow = "AM"
+    Indigenous = "IN"
+    Other = "OU"
+    NotSpecified = "NS"
 
 
 from app.core.settings import settings
@@ -45,10 +125,12 @@ class User(Base):
 
     # >>> NOVO: FKs para lookups
     sex_id: Mapped[int] = mapped_column(ForeignKey("lk_sex.id"), nullable=False)
+    color_id: Mapped[int] = mapped_column(ForeignKey("lk_color.id"), nullable=False)
     role_id: Mapped[int] = mapped_column(ForeignKey("lk_role.id"), nullable=False)
 
     # relações para fácil acesso ao code
     sex: Mapped[LkSex] = relationship()
+    color: Mapped[LkColor] = relationship()
     role: Mapped[LkRole] = relationship()
 
     birthday: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -65,7 +147,11 @@ class User(Base):
     # helpers para expor os códigos como antes (M/F/O/N e Admin/User/Manager)
     @property
     def sex_code(self) -> str:
-        return self.sex.code if self.sex else "N"
+        return self.sex.code if self.sex else Sex.NotSpecified.value
+
+    @property
+    def color_code(self) -> str:
+        return self.color.code if self.color else "NS"
 
     @property
     def role_code(self) -> str:
@@ -85,6 +171,7 @@ class RegisterIn(BaseModel):
     password: str
     name_for_certificate: str
     sex: Sex
+    color: SkinColor
     birthday: str
     role: RolesEnum = RolesEnum.User
     username: str
@@ -94,16 +181,34 @@ class RegisterIn(BaseModel):
     @field_validator("sex", mode="before")
     @classmethod
     def map_letters_to_enum(cls, v):
+        if isinstance(v, Sex):
+            return v
+        if isinstance(v, str):
+            try:
+                return Sex.parse(v)
+            except ValueError as exc:
+                raise ValueError("Sexo inválido") from exc
+        raise ValueError("Sexo inválido")
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def map_color_letters_to_enum(cls, v):
         if isinstance(v, str):
             mapping = {
-                "M": Sex.Male,
-                "F": Sex.Female,
-                "O": Sex.Other,
-                "N": Sex.NotSpecified,
-                "Male": Sex.Male,
-                "Female": Sex.Female,
-                "Other": Sex.Other,
-                "NotSpecified": Sex.NotSpecified,
+                "BR": SkinColor.White,
+                "PR": SkinColor.Black,
+                "PA": SkinColor.Brown,
+                "AM": SkinColor.Yellow,
+                "IN": SkinColor.Indigenous,
+                "OU": SkinColor.Other,
+                "NS": SkinColor.NotSpecified,
+                "White": SkinColor.White,
+                "Black": SkinColor.Black,
+                "Brown": SkinColor.Brown,
+                "Yellow": SkinColor.Yellow,
+                "Indigenous": SkinColor.Indigenous,
+                "Other": SkinColor.Other,
+                "NotSpecified": SkinColor.NotSpecified,
             }
             return mapping.get(v, v)
         return v
@@ -123,6 +228,7 @@ class UserOut(BaseModel):
     banner_pic_url: Optional[str] = None
     role: RolesEnum
     sex: Sex
+    color: SkinColor
 
     @classmethod
     def from_orm_user(cls, u: "User") -> "UserOut":
@@ -133,7 +239,8 @@ class UserOut(BaseModel):
             profile_pic_url=u.profile_pic_url,
             banner_pic_url=u.banner_pic_url,
             role=RolesEnum(u.role_code),  # <-- da lookup
-            sex=Sex(u.sex_code),  # <-- da lookup
+            sex=Sex.from_db_code(u.sex_code),  # <-- da lookup
+            color=SkinColor(u.color_code),
         )
 
 
@@ -160,6 +267,7 @@ class UserOut(BaseModel):
     banner_pic_url: Optional[str] = None
     role: RolesEnum
     sex: Sex
+    color: SkinColor
 
     @classmethod
     def from_orm_user(cls, u: "User") -> "UserOut":
@@ -170,5 +278,6 @@ class UserOut(BaseModel):
             profile_pic_url=u.profile_pic_url,
             banner_pic_url=u.banner_pic_url,
             role=RolesEnum(u.role_code),  # <-- da lookup
-            sex=Sex(u.sex_code),  # <-- da lookup
+            sex=Sex.from_db_code(u.sex_code),  # <-- da lookup
+            color=SkinColor(u.color_code),
         )

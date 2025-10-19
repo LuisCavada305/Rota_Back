@@ -25,13 +25,13 @@ from app.core.db import session_scope
 from app.models.lk_enrollment_status import LkEnrollmentStatus as LkEnrollmentStatusORM
 from app.models.lk_item_type import LkItemType as LkItemTypeORM
 from app.models.lk_progress_status import LkProgressStatus as LkProgressStatusORM
-from app.models.lookups import LkRole, LkSex
+from app.models.lookups import LkRole, LkSex, LkColor
 from app.models.trail_items import TrailItems as TrailItemsORM
 from app.models.trail_sections import TrailSections as TrailSectionsORM
 from app.models.trails import Trails as TrailsORM
 from app.models.user_item_progress import UserItemProgress as UserItemProgressORM
 from app.models.user_trails import UserTrails as UserTrailsORM
-from app.models.users import Sex
+from app.models.users import Sex, SkinColor
 from app.models.roles import RolesEnum
 from app.repositories.TrailsRepository import TrailsRepository
 from app.repositories.UserProgressRepository import UserProgressRepository
@@ -73,7 +73,8 @@ class BenchmarkCase:
 
 
 LOOKUP_VALUES = {
-    LkSex: ("M", "F", "O", "N"),
+    LkSex: ("MC", "MT", "WC", "WT", "OT", "NS"),
+    LkColor: ("BR", "PR", "PA", "AM", "IN", "OU", "NS"),
     LkRole: ("Admin", "User", "Manager"),
     LkItemTypeORM: ("DOC", "VIDEO", "FORM"),
     LkEnrollmentStatusORM: ("ENROLLED", "IN_PROGRESS", "COMPLETED"),
@@ -102,7 +103,8 @@ def ensure_benchmark_user(session: Session, email: str, password: str) -> User:
         password_hash=hash_password(password),
         name_for_certificate="Performance Bench",
         username=username,
-        sex=Sex.Male,
+        sex=Sex.ManCis,
+        color=SkinColor.White,
         role=RolesEnum.User,
         birthday="1990-01-01",
     )

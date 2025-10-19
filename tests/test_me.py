@@ -15,6 +15,7 @@ def register_and_login(
         "password": "TestPass!123",
         "name_for_certificate": "Me Route",
         "sex": "NotSpecified",
+        "color": "NS",
         "birthday": "1990-01-01",
         "username": f"user_{uuid.uuid4().hex[:6]}",
         "social_name": "Me Route",
@@ -45,6 +46,7 @@ def test_me_returns_profile_and_csrf_header(client, db_session):
     payload = me_resp.get_json()
     assert payload["user"]["email"].endswith("@example.com")
     assert payload["user"]["username"]
+    assert "color" in payload["user"]
 
     returned_csrf = me_resp.headers.get("X-CSRF-Token")
     assert returned_csrf == csrf_header

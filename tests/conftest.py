@@ -19,7 +19,7 @@ from app.core.db import (
 )
 from app.core.settings import settings
 from app.models.base import Base
-from app.models.lookups import LkRole, LkSex
+from app.models.lookups import LkRole, LkSex, LkColor
 
 
 app.config.update({"TESTING": True})
@@ -37,9 +37,13 @@ def engine():
     Base.metadata.create_all(bind=global_engine)
     with eng.begin() as conn:
         existing_sex = set(conn.execute(select(LkSex.code)).scalars())
-        for code in ["M", "F", "O", "N"]:
+        for code in ["MC", "MT", "WC", "WT", "OT", "NS"]:
             if code not in existing_sex:
                 conn.execute(insert(LkSex).values(code=code))
+        existing_colors = set(conn.execute(select(LkColor.code)).scalars())
+        for code in ["BR", "PR", "PA", "AM", "IN", "OU", "NS"]:
+            if code not in existing_colors:
+                conn.execute(insert(LkColor).values(code=code))
         existing_roles = set(conn.execute(select(LkRole.code)).scalars())
         for code in ["Admin", "User", "Manager"]:
             if code not in existing_roles:

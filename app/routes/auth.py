@@ -93,6 +93,7 @@ def register():
         name_for_certificate=payload.name_for_certificate,
         username=payload.username,
         sex=payload.sex,
+        color=payload.color,
         role=payload.role,
         birthday=payload.birthday,
         social_name=payload.social_name,

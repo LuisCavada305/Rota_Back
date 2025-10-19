@@ -41,6 +41,7 @@ def test_register_success(client, db_session):
         "password": "testpass",
         "name_for_certificate": "Test User",
         "sex": "NotSpecified",
+        "color": "NS",
         "birthday": "2000-01-01",
         "username": "testuser",
         "social_name": "Test User",
@@ -55,6 +56,7 @@ def test_register_success(client, db_session):
     # não deve vazar hash na resposta
     assert "password_hash" not in r.get_data(as_text=True)
     assert data["role"] == payload["role"]
+    assert data["color"] == "NS"
 
 
 def test_register_conflict_on_duplicate_email(client, db_session):
@@ -66,6 +68,7 @@ def test_register_conflict_on_duplicate_email(client, db_session):
         "password": "x",
         "name_for_certificate": "A",
         "sex": "NotSpecified",
+        "color": "NS",
         "birthday": "2000-01-01",
         "username": "dupuser",
         "social_name": "Dup User",
@@ -88,6 +91,7 @@ def test_register_accepts_short_sex_letter(client, db_session):
         "password": "pass123",
         "name_for_certificate": "Enum Short",
         "sex": "N",  # <- letra curta
+        "color": "NS",
         "birthday": "2000-01-01",
         "username": "enumshort",
         "social_name": "Enum Short",
@@ -113,6 +117,7 @@ def test_login_success_and_cookie_flags(client, db_session):
         "password": "p@ss",
         "name_for_certificate": "U",
         "sex": "NotSpecified",
+        "color": "NS",
         "birthday": "2000-01-01",
         "username": "loginuser",
         "social_name": "Login User",
@@ -160,6 +165,7 @@ def test_login_fails_with_wrong_password(client, db_session):
             "password": "right",
             "name_for_certificate": "U",
             "sex": "NotSpecified",
+        "color": "NS",
             "birthday": "2000-01-01",
             "username": "wrongpassuser",
             "social_name": "Wrong Pass User",
@@ -208,6 +214,7 @@ def test_password_is_hashed_in_db(client, db_session):
             "password": "plain123",
             "name_for_certificate": "U",
             "sex": "NotSpecified",
+            "color": "NS",
             "birthday": "2000-01-01",
             "username": "hashuser",
             "social_name": "Hash User",
@@ -236,7 +243,8 @@ def test_register_fails_with_invalid_role(client):
         "email": unique_email("badrole"),
         "password": "x",
         "name_for_certificate": "Bad Role",
-        "sex": "M",
+        "sex": "MC",
+        "color": "BR",
         "birthday": "1990-01-01",
         "username": "badroleuser",
         "role": "NotARole",
@@ -251,8 +259,24 @@ def test_register_fails_with_invalid_sex(client):
         "password": "x",
         "name_for_certificate": "Bad Sex",
         "sex": "X",
+        "color": "NS",
         "birthday": "1990-01-01",
         "username": "badsexuser",
+        "role": "User",
+    }
+    r = client.post("/auth/register", json=payload)
+    assert r.status_code == 422
+
+
+def test_register_fails_with_invalid_color(client):
+    payload = {
+        "email": unique_email("badcolor"),
+        "password": "x",
+        "name_for_certificate": "Bad Color",
+        "sex": "MC",
+        "color": "??",
+        "birthday": "1990-01-01",
+        "username": "badcoloruser",
         "role": "User",
     }
     r = client.post("/auth/register", json=payload)
@@ -269,6 +293,7 @@ def test_register_conflict_on_duplicate_username(client, db_session):
         "password": "x",
         "name_for_certificate": "A",
         "sex": "NotSpecified",
+        "color": "NS",
         "birthday": "2000-01-01",
         "username": "uniqueuser",
         "social_name": "Dup User",
@@ -298,6 +323,7 @@ def test_password_reset_flow_updates_credentials(client, db_session):
         "password": "antigaSenha!",
         "name_for_certificate": "Reset User",
         "sex": "NotSpecified",
+        "color": "NS",
         "birthday": "2000-01-01",
         "username": f"user_{uuid.uuid4().hex[:6]}",
         "social_name": "Reset User",

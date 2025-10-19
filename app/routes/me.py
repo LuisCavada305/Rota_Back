@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError, field_validator
 from app.core.db import get_db
 from app.core.settings import settings
 from app.models.users import User, UserOut
-from app.models.lookups import LkRole, LkSex
+from app.models.lookups import LkRole, LkSex, LkColor
 from app.repositories.UsersRepository import UsersRepository
 
 
@@ -65,6 +65,7 @@ def me():
             ),
             joinedload(User.role).load_only(LkRole.code),
             joinedload(User.sex).load_only(LkSex.code),
+            joinedload(User.color).load_only(LkColor.code),
         )
         .filter(User.user_id == user_id)
         .first()

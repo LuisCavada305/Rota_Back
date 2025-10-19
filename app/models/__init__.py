@@ -4,7 +4,7 @@
 from .base import Base  # noqa: F401
 
 # Lookup tables
-from .lookups import LkSex, LkRole  # noqa: F401
+from .lookups import LkSex, LkRole, LkColor  # noqa: F401
 from .lk_item_type import LkItemType  # noqa: F401
 from .lk_enrollment_status import LkEnrollmentStatus  # noqa: F401
 from .lk_progress_status import LkProgressStatus  # noqa: F401

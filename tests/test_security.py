@@ -16,7 +16,7 @@ from app.services.security import (
     sign_session,
 )
 from app.models.roles import RolesEnum
-from app.models.users import Sex
+from app.models.users import Sex, SkinColor
 
 
 def _unique_email(prefix: str) -> str:
@@ -92,6 +92,7 @@ def test_password_reset_token_roundtrip(db_session):
         name_for_certificate="Reset User",
         username=f"user_{uuid.uuid4().hex[:6]}",
         sex=Sex.NotSpecified,
+        color=SkinColor.NotSpecified,
         role=RolesEnum.User,
     )
 
@@ -110,6 +111,7 @@ def test_password_reset_token_rejects_tampering(db_session):
         name_for_certificate="Reset User",
         username=f"user_{uuid.uuid4().hex[:6]}",
         sex=Sex.NotSpecified,
+        color=SkinColor.NotSpecified,
         role=RolesEnum.User,
     )
 
