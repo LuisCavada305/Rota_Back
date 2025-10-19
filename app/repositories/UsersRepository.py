@@ -25,10 +25,9 @@ class UsersRepository:
         return sid
 
     def _color_id(self, color: SkinColor) -> int:
-        cid = (
-            self.db.scalars(select(LkColor.id).where(LkColor.code == color.value))
-            .first()
-        )
+        cid = self.db.scalars(
+            select(LkColor.id).where(LkColor.code == color.value)
+        ).first()
         if cid is None:
             raise ValueError(f"lk_color não possui code '{color.value}'")
         return cid
@@ -41,7 +40,9 @@ class UsersRepository:
             raise ValueError(f"lk_role não possui code '{role.value}'")
         return rid
 
-    def resolve_ids(self, sex: Sex, color: SkinColor, role: RolesEnum) -> Tuple[int, int, int]:
+    def resolve_ids(
+        self, sex: Sex, color: SkinColor, role: RolesEnum
+    ) -> Tuple[int, int, int]:
         return self._sex_id(sex), self._color_id(color), self._role_id(role)
 
     # ---------- Queries (com relações carregadas) ----------

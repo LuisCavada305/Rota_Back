@@ -165,7 +165,7 @@ def test_login_fails_with_wrong_password(client, db_session):
             "password": "right",
             "name_for_certificate": "U",
             "sex": "NotSpecified",
-        "color": "NS",
+            "color": "NS",
             "birthday": "2000-01-01",
             "username": "wrongpassuser",
             "social_name": "Wrong Pass User",

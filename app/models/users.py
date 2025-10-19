@@ -27,13 +27,7 @@ class Sex(str, Enum):
 
     @classmethod
     def _normalize(cls, value: str) -> str:
-        return (
-            value.strip()
-            .replace(" ", "")
-            .replace("-", "")
-            .replace("_", "")
-            .upper()
-        )
+        return value.strip().replace(" ", "").replace("-", "").replace("_", "").upper()
 
     @classmethod
     def parse(cls, value) -> "Sex":
