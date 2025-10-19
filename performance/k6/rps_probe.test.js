@@ -17,15 +17,18 @@ import {
   me_profile,
 } from './performance.test.js';
 
-const MIN_RPS = Math.max(1, Number(__ENV.MIN_PROBE_RPS || 10));
-const MAX_RPS = Math.max(MIN_RPS, Number(__ENV.MAX_PROBE_RPS || MIN_RPS));
-const STEP_RPS = Math.max(1, Number(__ENV.PROBE_STEP_RPS || 10));
+const MIN_RPS = Math.max(1, readNumberEnv('MIN_PROBE_RPS', 10));
+const MAX_RPS = Math.max(MIN_RPS, readNumberEnv('MAX_PROBE_RPS', 200));
+const STEP_RPS = Math.max(1, readNumberEnv('PROBE_STEP_RPS', 10));
 const WARMUP_DURATION = __ENV.PROBE_WARMUP_DURATION || '30s';
 const STEP_DURATION = __ENV.PROBE_STEP_DURATION || '30s';
 const STEP_PAUSE = __ENV.PROBE_STEP_PAUSE || '5s';
-const FAILURE_TOLERANCE = Math.max(0, Number(__ENV.PROBE_FAILURE_TOLERANCE || 0.01));
-const PRE_ALLOCATED_VUS = Number(__ENV.PRE_ALLOCATED_VUS || 50);
-const MAX_VUS = Number(__ENV.MAX_VUS || Math.max(PRE_ALLOCATED_VUS * 4, PRE_ALLOCATED_VUS + 20));
+const FAILURE_TOLERANCE = Math.max(0, readNumberEnv('PROBE_FAILURE_TOLERANCE', 0.01));
+const PRE_ALLOCATED_VUS = Math.max(1, readNumberEnv('PRE_ALLOCATED_VUS', 50));
+const MAX_VUS = Math.max(
+  PRE_ALLOCATED_VUS,
+  readNumberEnv('MAX_VUS', Math.max(PRE_ALLOCATED_VUS * 4, PRE_ALLOCATED_VUS + 20)),
+);
 const INSECURE_SKIP_TLS_VERIFY = (__ENV.INSECURE_SKIP_TLS_VERIFY || 'true').toLowerCase() !== 'false';
 
 const PROBE_ENDPOINTS = [
@@ -151,8 +154,42 @@ export function handleSummary(data) {
     const requestCount = requestMetric?.values?.count || 0;
     const requestRate = requestMetric?.values?.rate
       || (scenario.durationSeconds > 0 ? requestCount / scenario.durationSeconds : 0);
-    const failureRate = failureMetric?.values?.rate || 0;
-    const failedRequests = requestCount * failureRate;
+
+    const failureValues = failureMetric?.values || {};
+    let failedRequests = 0;
+    if (typeof failureValues.count === 'number' && Number.isFinite(failureValues.count)) {
+      failedRequests = failureValues.count;
+    } else if (typeof failureValues.fails === 'number' && Number.isFinite(failureValues.fails)) {
+      failedRequests = failureValues.fails;
+    } else if (
+      scenario.durationSeconds > 0
+      && typeof failureValues.rate === 'number'
+      && Number.isFinite(failureValues.rate)
+    ) {
+      failedRequests = failureValues.rate * scenario.durationSeconds;
+    }
+
+    let failureRate = (
+      typeof failureValues.rate === 'number' && Number.isFinite(failureValues.rate)
+    ) ? failureValues.rate : 0;
+    if (requestCount > 0) {
+      if (failedRequests > 0) {
+        failureRate = Math.min(1, Math.max(0, failedRequests / requestCount));
+      } else if (
+        requestRate > 0
+        && typeof failureValues.rate === 'number'
+        && Number.isFinite(failureValues.rate)
+      ) {
+        failureRate = Math.min(1, Math.max(0, failureValues.rate / requestRate));
+        failedRequests = failureRate * requestCount;
+      } else {
+        failureRate = 0;
+      }
+    } else {
+      failureRate = 0;
+      failedRequests = 0;
+    }
+
     const passed = requestCount > 0 && failureRate <= FAILURE_TOLERANCE;
 
     if (passed) {
@@ -250,10 +287,12 @@ function findMetric(metrics, name, scenario) {
   if (!metrics) {
     return null;
   }
+
   const exactKey = `${name}{scenario:${scenario}}`;
   if (metrics[exactKey]) {
     return metrics[exactKey];
   }
+
   const prefix = `${name}{`;
   for (const [key, metric] of Object.entries(metrics)) {
     if (!key.startsWith(prefix)) {
@@ -263,5 +302,24 @@ function findMetric(metrics, name, scenario) {
       return metric;
     }
   }
-  return null;
+
+  const baseMetric = metrics[name];
+  if (baseMetric?.submetrics) {
+    for (const [tagKey, metric] of Object.entries(baseMetric.submetrics)) {
+      if (typeof tagKey === 'string' && tagKey.includes(`scenario:${scenario}`)) {
+        return metric;
+      }
+    }
+  }
+
+  return baseMetric || null;
+}
+
+function readNumberEnv(key, fallback) {
+  const raw = __ENV[key];
+  if (raw === undefined || raw === null || raw === '') {
+    return fallback;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
 }
