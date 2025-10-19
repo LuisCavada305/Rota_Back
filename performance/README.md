@@ -47,6 +47,33 @@ it prints a consolidated summary containing:
 The raw metrics are also written to `performance/results.json` so you can archive them or
 feed them into dashboards.
 
+### Discovering the sustainable RPS ceiling
+
+When you want to understand how much throughput the platform can handle before error
+rates spike, execute the RPS probe. It reuses the same authentication/bootstrap logic as
+the main load test but gradually increases the target arrival rate until it breaches the
+configured failure tolerance (default 1% of requests):
+
+```bash
+k6 run performance/k6/rps_probe.test.js
+```
+
+Tweak the sweep parameters via environment variables:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MIN_PROBE_RPS` | `10` | Initial RPS target after warm-up. |
+| `MAX_PROBE_RPS` | `200` | Maximum target RPS to try before stopping. |
+| `PROBE_STEP_RPS` | `10` | Increment applied to the target RPS between steps. |
+| `PROBE_WARMUP_DURATION` | `30s` | Length of the warm-up stage at `MIN_PROBE_RPS`. |
+| `PROBE_STEP_DURATION` | `30s` | How long each target RPS level is exercised. |
+| `PROBE_STEP_PAUSE` | `5s` | Gap between successive RPS levels to let the system stabilise. |
+| `PROBE_FAILURE_TOLERANCE` | `0.01` | Maximum acceptable failure rate (e.g. `0.05` = 5%). |
+
+At the end of the run the script prints a per-level summary and stores the raw numbers in
+`performance/rps_results.json`, including the highest RPS target that stayed within the
+failure threshold.
+
 ## Repository query benchmark
 
 Run the Python benchmark to measure ORM query performance:
