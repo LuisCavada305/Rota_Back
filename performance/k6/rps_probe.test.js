@@ -1,3 +1,6 @@
+import exec from 'k6/execution';
+import { Counter } from 'k6/metrics';
+
 import {
   setup as baseSetup,
   trails_showcase,
@@ -30,6 +33,9 @@ const MAX_VUS = Math.max(
   readNumberEnv('MAX_VUS', Math.max(PRE_ALLOCATED_VUS * 4, PRE_ALLOCATED_VUS + 20)),
 );
 const INSECURE_SKIP_TLS_VERIFY = (__ENV.INSECURE_SKIP_TLS_VERIFY || 'true').toLowerCase() !== 'false';
+
+const probeRequestCounter = new Counter('probe_requests');
+const probeFailureCounter = new Counter('probe_failures');
 
 const PROBE_ENDPOINTS = [
   trails_showcase,
@@ -132,9 +138,41 @@ export function probe_iteration(data) {
   const index = typeof __ITER === 'number' && PROBE_ENDPOINTS.length
     ? __ITER % PROBE_ENDPOINTS.length
     : 0;
-  const exec = PROBE_ENDPOINTS[index];
-  if (exec) {
-    exec(data);
+  const endpointExec = PROBE_ENDPOINTS[index];
+  if (!endpointExec) {
+    return;
+  }
+
+  const scenarioName = exec.scenario?.name || 'unknown';
+  const targetTag = exec.scenario?.tags?.target_rps
+    || (scenarioName.startsWith('probe_') ? scenarioName.slice('probe_'.length) : '');
+  const counterTags = {
+    scenario: scenarioName,
+    target_rps: targetTag,
+  };
+
+  let response;
+  try {
+    response = endpointExec(data);
+  } catch (error) {
+    probeRequestCounter.add(1, counterTags);
+    probeFailureCounter.add(1, counterTags);
+    throw error;
+  }
+
+  if (!response) {
+    return;
+  }
+
+  probeRequestCounter.add(1, counterTags);
+
+  const failed = Boolean(response.error)
+    || response.status >= 400
+    || response.status === 0
+    || Number.isNaN(Number(response.status));
+
+  if (failed) {
+    probeFailureCounter.add(1, counterTags);
   }
 }
 
@@ -148,47 +186,21 @@ export function handleSummary(data) {
   let highestPassing = null;
 
   for (const scenario of PROBE_SCENARIOS) {
-    const requestMetric = findMetric(data.metrics, 'http_reqs', scenario.name);
-    const failureMetric = findMetric(data.metrics, 'http_req_failed', scenario.name);
+    const requestMetric = findMetric(data.metrics, 'probe_requests', scenario.name);
+    const failureMetric = findMetric(data.metrics, 'probe_failures', scenario.name);
 
-    const requestCount = requestMetric?.values?.count || 0;
-    const requestRate = requestMetric?.values?.rate
-      || (scenario.durationSeconds > 0 ? requestCount / scenario.durationSeconds : 0);
+    const requestCount = normalizeCount(requestMetric?.values?.count);
+    const requestRate = scenario.durationSeconds > 0
+      ? requestCount / scenario.durationSeconds
+      : 0;
 
-    const failureValues = failureMetric?.values || {};
-    let failedRequests = 0;
-    if (typeof failureValues.count === 'number' && Number.isFinite(failureValues.count)) {
-      failedRequests = failureValues.count;
-    } else if (typeof failureValues.fails === 'number' && Number.isFinite(failureValues.fails)) {
-      failedRequests = failureValues.fails;
-    } else if (
-      scenario.durationSeconds > 0
-      && typeof failureValues.rate === 'number'
-      && Number.isFinite(failureValues.rate)
-    ) {
-      failedRequests = failureValues.rate * scenario.durationSeconds;
-    }
-
-    let failureRate = (
-      typeof failureValues.rate === 'number' && Number.isFinite(failureValues.rate)
-    ) ? failureValues.rate : 0;
-    if (requestCount > 0) {
-      if (failedRequests > 0) {
-        failureRate = Math.min(1, Math.max(0, failedRequests / requestCount));
-      } else if (
-        requestRate > 0
-        && typeof failureValues.rate === 'number'
-        && Number.isFinite(failureValues.rate)
-      ) {
-        failureRate = Math.min(1, Math.max(0, failureValues.rate / requestRate));
-        failedRequests = failureRate * requestCount;
-      } else {
-        failureRate = 0;
-      }
-    } else {
-      failureRate = 0;
-      failedRequests = 0;
-    }
+    const failedRequestsRaw = normalizeCount(failureMetric?.values?.count);
+    const failedRequests = requestCount > 0
+      ? Math.min(requestCount, failedRequestsRaw)
+      : failedRequestsRaw;
+    const failureRate = requestCount > 0
+      ? Math.min(1, Math.max(0, failedRequests / requestCount))
+      : 0;
 
     const passed = requestCount > 0 && failureRate <= FAILURE_TOLERANCE;
 
@@ -288,27 +300,21 @@ function findMetric(metrics, name, scenario) {
     return null;
   }
 
-  const exactKey = `${name}{scenario:${scenario}}`;
-  if (metrics[exactKey]) {
-    return metrics[exactKey];
+  const direct = `${name}{scenario:${scenario}}`;
+  if (metrics[direct]) {
+    return metrics[direct];
   }
 
-  const prefix = `${name}{`;
-  for (const [key, metric] of Object.entries(metrics)) {
-    if (!key.startsWith(prefix)) {
-      continue;
-    }
-    if (key.includes(`scenario:${scenario}`)) {
-      return metric;
-    }
+  const taggedMetric = findTaggedMetric(metrics, name, scenario);
+  if (taggedMetric) {
+    return taggedMetric;
   }
 
   const baseMetric = metrics[name];
   if (baseMetric?.submetrics) {
-    for (const [tagKey, metric] of Object.entries(baseMetric.submetrics)) {
-      if (typeof tagKey === 'string' && tagKey.includes(`scenario:${scenario}`)) {
-        return metric;
-      }
+    const submetric = findTaggedMetric(baseMetric.submetrics, null, scenario);
+    if (submetric) {
+      return submetric;
     }
   }
 
@@ -322,4 +328,86 @@ function readNumberEnv(key, fallback) {
   }
   const value = Number(raw);
   return Number.isFinite(value) ? value : fallback;
+}
+
+function findTaggedMetric(collection, metricName, scenario) {
+  if (!collection) {
+    return null;
+  }
+
+  for (const [key, metric] of Object.entries(collection)) {
+    const tags = extractMetricTags(key, metricName);
+    if (tags.scenario === scenario) {
+      return metric;
+    }
+  }
+
+  return null;
+}
+
+function extractMetricTags(key, metricName) {
+  if (typeof key !== 'string') {
+    return {};
+  }
+
+  let raw = key;
+  if (metricName && raw.startsWith(metricName)) {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      raw = raw.slice(start + 1, end);
+    } else {
+      raw = '';
+    }
+  }
+
+  raw = raw.trim();
+  if (!raw) {
+    return {};
+  }
+
+  if (raw.startsWith('{') && raw.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (error) {
+      raw = raw.slice(1, -1);
+    }
+  }
+
+  const tags = {};
+  for (const part of raw.split(',')) {
+    const segment = part.trim();
+    if (!segment) {
+      continue;
+    }
+
+    let separatorIndex = segment.indexOf(':');
+    if (separatorIndex === -1) {
+      separatorIndex = segment.indexOf('=');
+    }
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const name = segment.slice(0, separatorIndex).trim();
+    const value = segment.slice(separatorIndex + 1).trim().replace(/^"|"$/g, '');
+    if (name) {
+      tags[name] = value;
+    }
+  }
+
+  return tags;
+}
+
+function normalizeCount(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+  if (value === 0) {
+    return 0;
+  }
+  return Math.round(value);
 }
