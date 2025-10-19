@@ -180,8 +180,8 @@ class RegisterIn(BaseModel):
         if isinstance(v, str):
             try:
                 return Sex.parse(v)
-            except ValueError as exc:
-                raise ValueError("Sexo inválido") from exc
+            except ValueError:
+                raise ValueError("Sexo inválido")
         raise ValueError("Sexo inválido")
 
     @field_validator("color", mode="before")
