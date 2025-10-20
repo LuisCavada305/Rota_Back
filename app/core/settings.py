@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     db_pass: str = Field(default="supersecret", env="DB_PASS")
     database_url: str | None = Field(default=None, env="DATABASE_URL")
 
-    API_ORIGIN: str = Field(default="http://localhost:5173", env="API_ORIGIN")
+    API_ORIGIN: str = Field(default="https://localhost:5173", env="API_ORIGIN")
     JWT_SECRET: str = Field(env="JWT_SECRET")
     CSRF_SECRET: str | None = Field(default=None, env="CSRF_SECRET")
     COOKIE_NAME: str = Field(default="rota_session", env="COOKIE_NAME")
@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     smtp_from_name: str = Field(default="Equipe Rota", env="SMTP_FROM_NAME")
     smtp_from_email: str | None = Field(default=None, env="SMTP_FROM_EMAIL")
     app_base_url: str | None = Field(default=None, env="APP_BASE_URL")
+    password_reset_base_url: str | None = Field(
+        default=None, env="PASSWORD_RESET_BASE_URL"
+    )
     password_reset_path: str = Field(
         default="/redefinir-senha", env="PASSWORD_RESET_PATH"
     )

@@ -25,7 +25,10 @@ def _base_url() -> str:
 
 
 def _build_reset_url(token: str) -> str:
-    base = _base_url().rstrip("/") + "/"
+    if settings.password_reset_base_url:
+        base = settings.password_reset_base_url.rstrip("/") + "/"
+    else:
+        base = _base_url().rstrip("/") + "/"
     path = settings.password_reset_path.lstrip("/")
     url = urljoin(base, path)
     separator = "&" if "?" in url else "?"
