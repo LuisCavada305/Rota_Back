@@ -30,12 +30,15 @@ class TrailOut(BaseModel):
     thumbnail_url: str
     author: Optional[str] = None
     review: Optional[float] = None
+    review_count: Optional[int] = None
     description: Optional[str] = None
     progress_percent: Optional[float] = None
     status: Optional[str] = None
     completed_at: Optional[str] = None
     is_completed: Optional[bool] = None
     nextAction: Optional[str] = None
+    user_review_rating: Optional[int] = None
+    user_review_comment: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -126,6 +129,8 @@ def _attach_progress_metadata(db, trail_payload: List[dict]) -> List[dict]:
         item["completed_at"] = progress.get("completed_at")
         item["is_completed"] = progress.get("status") == "COMPLETED"
         item["nextAction"] = progress.get("nextAction")
+        item["user_review_rating"] = progress.get("review_rating")
+        item["user_review_comment"] = progress.get("review_comment")
     return trail_payload
 
 
@@ -175,6 +180,48 @@ def get_trail(trail_id: int):
     data = TrailOut.model_validate(t, from_attributes=True).model_dump(mode="json")
     data = _attach_progress_metadata(db, [data])[0]
     return jsonify(data)
+
+
+class ReviewPayload(BaseModel):
+    rating: int
+    comment: Optional[str] = None
+
+
+@bp.post("/<int:trail_id>/reviews")
+def submit_trail_review(trail_id: int):
+    enforce_csrf()
+    user = get_current_user()
+    if not user:
+        abort(401)
+
+    try:
+        payload = ReviewPayload.model_validate(request.get_json(force=True) or {})
+    except ValidationError as exc:
+        return format_validation_error(exc)
+
+    db = get_db()
+    repo = UserTrailsRepository(db)
+    try:
+        result = repo.save_review(
+            user.user_id,
+            trail_id,
+            payload.rating,
+            payload.comment,
+        )
+    except PermissionError:
+        abort(403, description="Finalize a trilha para poder avaliá-la.")
+    except ValueError as exc:
+        abort(400, description=str(exc))
+
+    return jsonify(
+        {
+            "ok": True,
+            "rating": result.get("rating"),
+            "comment": result.get("comment"),
+            "average": result.get("average"),
+            "count": result.get("count"),
+        }
+    )
 
 
 @bp.get("/<int:trail_id>/sections")

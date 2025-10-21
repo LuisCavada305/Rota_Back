@@ -22,6 +22,7 @@ class Trails(Base):
     review: Mapped[Optional[float]] = mapped_column(
         Numeric(asdecimal=False), nullable=True
     )
+    review_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_date: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
     created_by: Mapped[Optional[int]] = mapped_column(
         ForeignKey("users.user_id"), nullable=True

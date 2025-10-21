@@ -1,7 +1,15 @@
 # app/models/user_trails.py
 from typing import Optional
 from datetime import datetime
-from sqlalchemy import Integer, BigInteger, ForeignKey, DateTime, Numeric
+from sqlalchemy import (
+    Integer,
+    BigInteger,
+    ForeignKey,
+    DateTime,
+    Numeric,
+    SmallInteger,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
 
@@ -31,4 +39,9 @@ class UserTrails(Base):
     )
     completed_at_utc: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=False), nullable=True
+    )
+    review_rating: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    review_comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )

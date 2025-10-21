@@ -202,6 +202,8 @@ class UserTrailsRepository:
                 UserTrailsORM.progress_percent,
                 UserTrailsORM.started_at,
                 UserTrailsORM.completed_at,
+                UserTrailsORM.review_rating,
+                UserTrailsORM.review_comment,
                 LkEnrollmentStatusORM.code.label("status_code"),
             )
             .outerjoin(
@@ -254,6 +256,12 @@ class UserTrailsRepository:
                 "completed_at": (
                     row.completed_at.isoformat() if row and row.completed_at else None
                 ),
+                "review_rating": (
+                    int(row.review_rating)
+                    if row and row.review_rating is not None
+                    else None
+                ),
+                "review_comment": row.review_comment or None,
             }
 
             cert = cert_map.get(trail_id)
@@ -317,6 +325,77 @@ class UserTrailsRepository:
                 }
             )
         return overview
+
+    def save_review(
+        self,
+        user_id: int,
+        trail_id: int,
+        rating: int,
+        comment: str | None = None,
+    ) -> dict[str, Any]:
+        if rating < 1 or rating > 5:
+            raise ValueError("Rating must be between 1 and 5")
+
+        ut = (
+            self.db.query(UserTrailsORM)
+            .filter(
+                UserTrailsORM.user_id == user_id,
+                UserTrailsORM.trail_id == trail_id,
+            )
+            .first()
+        )
+        if not ut:
+            raise ValueError("User not enrolled in this trail")
+
+        completed_status_id = self._enrollment_status_id("COMPLETED")
+        is_completed = (
+            (ut.status_id == completed_status_id)
+            or (ut.completed_at is not None)
+            or (ut.progress_percent is not None and float(ut.progress_percent) >= 100)
+        )
+        if not is_completed:
+            raise PermissionError("Trail must be completed before reviewing.")
+
+        ut.review_rating = rating
+        ut.review_comment = comment.strip() if comment else None
+        ut.reviewed_at = func.now()
+        self.db.flush()
+
+        average, count = self._update_trail_review_summary(trail_id)
+        self.db.commit()
+
+        return {
+            "rating": rating,
+            "comment": ut.review_comment,
+            "average": average,
+            "count": count,
+        }
+
+    def _update_trail_review_summary(self, trail_id: int) -> tuple[float | None, int]:
+        avg_count = (
+            self.db.query(
+                func.avg(UserTrailsORM.review_rating),
+                func.count(UserTrailsORM.review_rating),
+            )
+            .filter(
+                UserTrailsORM.trail_id == trail_id,
+                UserTrailsORM.review_rating.isnot(None),
+            )
+            .first()
+        )
+
+        avg_value = (
+            float(avg_count[0]) if avg_count and avg_count[0] is not None else None
+        )
+        count_value = int(avg_count[1]) if avg_count and avg_count[1] is not None else 0
+
+        (
+            self.db.query(TrailsORM)
+            .filter(TrailsORM.id == trail_id)
+            .update({"review": avg_value, "review_count": count_value})
+        )
+        self.db.flush()
+        return avg_value, count_value
 
     def find_blocking_item(
         self, user_id: int, trail_id: int, target_item_id: int
