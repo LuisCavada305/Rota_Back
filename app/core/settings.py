@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     db_user: str = Field(default="rota_user", env="DB_USER")
     db_pass: str = Field(default="supersecret", env="DB_PASS")
     database_url: str | None = Field(default=None, env="DATABASE_URL")
+    db_pool_size: int = Field(default=8, env="DB_POOL_SIZE", ge=1, le=32)
+    db_max_overflow: int = Field(default=0, env="DB_MAX_OVERFLOW", ge=0, le=32)
+    db_pool_timeout: int = Field(default=20, env="DB_POOL_TIMEOUT", ge=1)
+    db_pool_recycle: int = Field(default=1800, env="DB_POOL_RECYCLE", ge=30)
 
     API_ORIGIN: str = Field(default="https://localhost:5173", env="API_ORIGIN")
     JWT_SECRET: str = Field(env="JWT_SECRET")

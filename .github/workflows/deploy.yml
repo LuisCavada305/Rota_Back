@@ -24,6 +24,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -42,12 +50,24 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
 
+      - name: Upload environment file (optional)
+        if: ${{ secrets.ENV_FILE_PROD != '' }}
+        env:
+          ENV_FILE_PROD: ${{ secrets.ENV_FILE_PROD }}
+        run: |
+          tmp_env="$(mktemp)"
+          printf '%s\n' "${ENV_FILE_PROD}" > "$tmp_env"
+          scp "$tmp_env" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/.env"
+          rm -f "$tmp_env"
+
       - name: Sync project to server
         run: |
           rsync -az --delete \
             --exclude '.git' \
             --exclude 'venv' \
+            --exclude '.venv' \
             --exclude '__pycache__' \
+            --exclude '.env' \
             ./ "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
 
       - name: Apply remote updates
@@ -60,6 +80,8 @@ jobs:
             pip install --upgrade pip
             pip install -r requirements.txt
             # Execute migrações ou scripts adicionais aqui:
-            # flask db upgrade
+            # alembic upgrade head
+            sudo systemctl start postgresql.service || true
+            sudo systemctl start redis-server.service || true
             sudo systemctl restart rota-backend.service
           EOF
