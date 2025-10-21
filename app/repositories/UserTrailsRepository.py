@@ -261,7 +261,7 @@ class UserTrailsRepository:
                     if row and row.review_rating is not None
                     else None
                 ),
-                "review_comment": row.review_comment or None,
+                "review_comment": (row.review_comment or None) if row else None,
             }
 
             cert = cert_map.get(trail_id)
