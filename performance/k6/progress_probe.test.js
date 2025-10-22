@@ -330,4 +330,3 @@ function generateSummaryText(output) {
   lines.push('====================================');
   return lines.join('\n');
 }
-
