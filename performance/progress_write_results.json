@@ -1,0 +1,13 @@
+{
+  "target_rps": 500,
+  "warmup_duration": "30s",
+  "test_duration": "2m",
+  "cooldown_duration": "30s",
+  "failure_tolerance": 0.02,
+  "observed_rps": 153.35,
+  "observed_rps_plateau": 230.025,
+  "total_requests": 27603,
+  "total_failures": 61,
+  "failure_rate": 0.0022099047205013946,
+  "passed": true
+}

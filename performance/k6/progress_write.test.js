@@ -9,9 +9,9 @@ import {
 const TEST_DURATION = __ENV.PROGRESS_WRITE_DURATION || '2m';
 const WARMUP_DURATION = __ENV.PROGRESS_WRITE_WARMUP || '30s';
 const COOLDOWN_DURATION = __ENV.PROGRESS_WRITE_COOLDOWN || '30s';
-const TARGET_RPS = Math.max(1, readNumberEnv('PROGRESS_WRITE_RPS', 15));
+const TARGET_RPS = Math.max(1, readNumberEnv('PROGRESS_WRITE_RPS', 500));
 const FAILURE_TOLERANCE = Math.max(0, readNumberEnv('PROGRESS_WRITE_FAILURE_TOLERANCE', 0.02));
-const PRE_ALLOCATED_VUS = Math.max(1, readNumberEnv('PROGRESS_WRITE_PRE_ALLOCATED_VUS', 20));
+const PRE_ALLOCATED_VUS = Math.max(1, readNumberEnv('PROGRESS_WRITE_PRE_ALLOCATED_VUS', 100));
 const MAX_VUS = Math.max(
   PRE_ALLOCATED_VUS,
   readNumberEnv('PROGRESS_WRITE_MAX_VUS', PRE_ALLOCATED_VUS * 4),
@@ -130,8 +130,8 @@ export function handleSummary(data) {
   const requestMetric = findMetric(data.metrics, 'progress_write_requests', scenarioName);
   const failureMetric = findMetric(data.metrics, 'progress_write_failures', scenarioName);
 
-  const totalRequests = normalizeCount(requestMetric?.values?.count);
-  const totalFailures = normalizeCount(failureMetric?.values?.count);
+  const totalRequests = resolveCount(data.metrics, 'progress_write_requests', requestMetric);
+  const totalFailures = resolveCount(data.metrics, 'progress_write_failures', failureMetric);
   const failureRate = totalRequests > 0 ? totalFailures / totalRequests : 0;
 
   const warmupSeconds = durationToSeconds(WARMUP_DURATION);
@@ -140,6 +140,8 @@ export function handleSummary(data) {
   const totalSeconds = warmupSeconds + mainSeconds + cooldownSeconds;
 
   const observedRps = totalSeconds > 0 ? totalRequests / totalSeconds : 0;
+  const plateauSeconds = durationToSeconds(TEST_DURATION);
+  const observedPlateauRps = plateauSeconds > 0 ? totalRequests / plateauSeconds : 0;
 
   const output = {
     target_rps: TARGET_RPS,
@@ -148,6 +150,7 @@ export function handleSummary(data) {
     cooldown_duration: COOLDOWN_DURATION,
     failure_tolerance: FAILURE_TOLERANCE,
     observed_rps: observedRps,
+    observed_rps_plateau: observedPlateauRps,
     total_requests: totalRequests,
     total_failures: totalFailures,
     failure_rate: failureRate,
@@ -225,6 +228,53 @@ function extractMetricTags(key, metricName) {
   if (typeof key !== 'string') {
     return {};
   }
+  const raw = extractRawTagBlock(key, metricName);
+  if (!raw) {
+    return {};
+  }
+  const jsonCandidate = raw.replace(/([a-zA-Z0-9_]+):/g, '"$1":');
+  try {
+    return JSON.parse(`{${jsonCandidate}}`);
+  } catch (error) {
+    const tags = {};
+    for (const part of raw.split(',')) {
+      const segment = part.trim();
+      if (!segment) {
+        continue;
+      }
+      const separatorIndex = segment.indexOf(':');
+      if (separatorIndex === -1) {
+        continue;
+      }
+      const name = segment.slice(0, separatorIndex).trim();
+      const value = segment.slice(separatorIndex + 1).trim().replace(/^"|"$/g, '');
+      if (name) {
+        tags[name] = value;
+      }
+    }
+    return tags;
+  }
+}
+
+function normalizeCount(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+  return Math.round(value);
+}
+
+function resolveCount(metrics, metricName, metricWithTags) {
+  if (metricWithTags?.values?.count !== undefined) {
+    return normalizeCount(metricWithTags.values.count);
+  }
+  const baseMetric = metrics?.[metricName];
+  if (baseMetric?.values?.count !== undefined) {
+    return normalizeCount(baseMetric.values.count);
+  }
+  return 0;
+}
+
+function extractRawTagBlock(key, metricName) {
   let raw = key;
   if (metricName && raw.startsWith(metricName)) {
     const start = raw.indexOf('{');
@@ -235,34 +285,7 @@ function extractMetricTags(key, metricName) {
       raw = '';
     }
   }
-  raw = raw.trim();
-  if (!raw) {
-    return {};
-  }
-  const tags = {};
-  for (const part of raw.split(',')) {
-    const segment = part.trim();
-    if (!segment) {
-      continue;
-    }
-    const separatorIndex = segment.indexOf(':');
-    if (separatorIndex === -1) {
-      continue;
-    }
-    const name = segment.slice(0, separatorIndex).trim();
-    const value = segment.slice(separatorIndex + 1).trim().replace(/^"|"$/g, '');
-    if (name) {
-      tags[name] = value;
-    }
-  }
-  return tags;
-}
-
-function normalizeCount(value) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    return 0;
-  }
-  return Math.round(value);
+  return raw.trim();
 }
 
 function generateSummaryText(output) {
@@ -273,6 +296,7 @@ function generateSummaryText(output) {
     `Warmup: ${output.warmup_duration}, Test: ${output.test_duration}, Cooldown: ${output.cooldown_duration}`,
   );
   lines.push(`Observed RPS: ${output.observed_rps.toFixed(2)}`);
+  lines.push(`Plateau RPS (test window): ${output.observed_rps_plateau.toFixed(2)}`);
   lines.push(
     `Failures: ${output.total_failures}/${output.total_requests} `
       + `(${(output.failure_rate * 100).toFixed(2)}%)`,
