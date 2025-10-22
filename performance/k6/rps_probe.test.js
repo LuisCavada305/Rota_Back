@@ -14,14 +14,17 @@ import {
   trails_audience,
   trails_learn,
   trail_item_detail,
+  user_trail_enroll,
   user_trail_progress,
   user_trail_items_progress,
   user_trail_sections_progress,
   me_profile,
+  trail_item_progress,
+  trail_form_submission,
 } from './performance.test.js';
 
 const MIN_RPS = Math.max(1, readNumberEnv('MIN_PROBE_RPS', 10));
-const MAX_RPS = Math.max(MIN_RPS, readNumberEnv('MAX_PROBE_RPS', 200));
+const MAX_RPS = Math.max(MIN_RPS, readNumberEnv('MAX_PROBE_RPS', 100));
 const STEP_RPS = Math.max(1, readNumberEnv('PROBE_STEP_RPS', 10));
 const WARMUP_DURATION = __ENV.PROBE_WARMUP_DURATION || '30s';
 const STEP_DURATION = __ENV.PROBE_STEP_DURATION || '30s';
@@ -33,11 +36,13 @@ const MAX_VUS = Math.max(
   readNumberEnv('MAX_VUS', Math.max(PRE_ALLOCATED_VUS * 4, PRE_ALLOCATED_VUS + 20)),
 );
 const INSECURE_SKIP_TLS_VERIFY = (__ENV.INSECURE_SKIP_TLS_VERIFY || 'true').toLowerCase() !== 'false';
+const ENABLE_WRITE_SCENARIOS =
+  (__ENV.ENABLE_WRITE_SCENARIOS || 'true').toLowerCase() !== 'false';
 
 const probeRequestCounter = new Counter('probe_requests');
 const probeFailureCounter = new Counter('probe_failures');
 
-const PROBE_ENDPOINTS = [
+const BASE_PROBE_ENDPOINTS = [
   trails_showcase,
   trails_list,
   trails_detail,
@@ -54,6 +59,12 @@ const PROBE_ENDPOINTS = [
   user_trail_sections_progress,
   me_profile,
 ];
+
+const WRITE_PROBE_ENDPOINTS = ENABLE_WRITE_SCENARIOS
+  ? [user_trail_enroll, trail_item_progress, trail_form_submission]
+  : [];
+
+const PROBE_ENDPOINTS = [...BASE_PROBE_ENDPOINTS, ...WRITE_PROBE_ENDPOINTS];
 
 const rates = [];
 for (let rate = MIN_RPS; rate <= MAX_RPS; rate += STEP_RPS) {
@@ -300,6 +311,11 @@ function findMetric(metrics, name, scenario) {
     return null;
   }
 
+  const baseMetric = metrics[name];
+  if (!scenario) {
+    return baseMetric || null;
+  }
+
   const direct = `${name}{scenario:${scenario}}`;
   if (metrics[direct]) {
     return metrics[direct];
@@ -310,7 +326,6 @@ function findMetric(metrics, name, scenario) {
     return taggedMetric;
   }
 
-  const baseMetric = metrics[name];
   if (baseMetric?.submetrics) {
     const submetric = findTaggedMetric(baseMetric.submetrics, null, scenario);
     if (submetric) {
@@ -318,7 +333,7 @@ function findMetric(metrics, name, scenario) {
     }
   }
 
-  return baseMetric || null;
+  return null;
 }
 
 function readNumberEnv(key, fallback) {

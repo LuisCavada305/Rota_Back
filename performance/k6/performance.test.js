@@ -642,6 +642,7 @@ function ensureUserCredentials() {
     name_for_certificate: 'Performance Tester',
     username,
     sex: 'M',
+    color: 'NS',
     role: 'User',
     birthday: '1990-01-01',
     remember: true,
@@ -702,6 +703,7 @@ function buildLoginPool(ctx) {
       name_for_certificate: 'Performance Tester',
       username,
       sex: 'M',
+      color: 'NS',
       role: 'User',
       birthday: '1990-01-01',
       remember: true,
@@ -943,7 +945,7 @@ export function setup() {
 
 function buildExec(name) {
   return function exec(data) {
-    requestEndpoint(name, data);
+    return requestEndpoint(name, data);
   };
 }
 

@@ -74,6 +74,43 @@ At the end of the run the script prints a per-level summary and stores the raw n
 `performance/rps_results.json`, including the highest RPS target that stayed within the
 failure threshold.
 
+### Progress endpoints probe
+
+To stress just the `/user-trails/.../progress` family (the most frequent calls in
+production) run:
+
+```bash
+k6 run performance/k6/progress_probe.test.js
+```
+
+Key env overrides:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PROGRESS_MIN_RPS` | `10` | Initial arrival rate after warmup. |
+| `PROGRESS_MAX_RPS` | `80` | Final target RPS to probe. |
+| `PROGRESS_STEP_RPS` | `10` | Increment between stages. |
+| `PROGRESS_STEP_DURATION` | `45s` | Duration of each target plateau. |
+| `PROGRESS_WARMUP_DURATION` | `30s` | Warmup before the first measurement stage. |
+| `PROGRESS_FAILURE_TOLERANCE` | `0.01` | Allowed failure rate before declaring the step as failed. |
+
+Results are written to `performance/progress_probe_results.json` and the CLI summary
+highlights the highest passing target.
+
+#### Measuring memory usage during the run
+
+The helper script `scripts/monitor_memory.py` samples RSS/VMS of the uvicorn worker while
+the probe executes. Install psutil (`pip install psutil`) and run it in parallel:
+
+```bash
+python scripts/monitor_memory.py --pattern "uvicorn app.asgi:app" \
+  --interval 0.5 --duration 420 --output perf_progress_mem.csv
+```
+
+This logs the memory footprint every 0.5 s and stores the data in CSV for later analysis.
+Start the monitor a few seconds before the k6 command so the timeline covers warmup and
+steady-state phases.
+
 ## Repository query benchmark
 
 Run the Python benchmark to measure ORM query performance:

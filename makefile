@@ -7,7 +7,7 @@ PORT        ?= 8001
 # Se você tem "app/main.py" com "app = Flask(__name__)" use:
 APP         ?= app.main:app
 ASGI_APP    ?= app.asgi:app
-UVICORN_WORKERS ?= 2
+UVICORN_WORKERS ?= 4
 UVICORN_KEEP_ALIVE ?= 5
 # Se você usa factory "def create_app()" use:
 # APP      ?= "app.main:create_app()"
