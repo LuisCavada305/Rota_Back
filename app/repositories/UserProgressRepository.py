@@ -32,11 +32,15 @@ class UserProgressRepository:
     ):
         status_id = self._status_id(status_code)
         completed_status_id = self._status_id("COMPLETED")
-        sanitized_progress = max(0, progress_value) if progress_value is not None else None
+        sanitized_progress = (
+            max(0, progress_value) if progress_value is not None else None
+        )
         progress_update_flag = sanitized_progress is not None
         last_passed_update_flag = last_passed_submission_id is not None
 
-        sanitized_progress = max(0, progress_value) if progress_value is not None else None
+        sanitized_progress = (
+            max(0, progress_value) if progress_value is not None else None
+        )
 
         now_sql = text("SELECT now(), now()")
         now_result = self.db.execute(now_sql).one()
@@ -93,7 +97,9 @@ class UserProgressRepository:
             "status_id": status_id,
             "completed_status_id": completed_status_id,
             "update_progress": sanitized_progress is not None,
-            "sanitized_progress_value": sanitized_progress if sanitized_progress is not None else 0,
+            "sanitized_progress_value": (
+                sanitized_progress if sanitized_progress is not None else 0
+            ),
             "update_last_passed": last_passed_submission_id is not None,
             "last_passed_submission_id": last_passed_submission_id,
             "current_now": current_now,
@@ -138,7 +144,9 @@ class UserProgressRepository:
                 "trail_item_id": item_id,
                 "status_id": status_id,
                 "completed_status_id": completed_status_id,
-                "insert_progress_value": sanitized_progress if sanitized_progress is not None else None,
+                "insert_progress_value": (
+                    sanitized_progress if sanitized_progress is not None else None
+                ),
                 "insert_last_passed_submission_id": last_passed_submission_id,
                 "current_now": current_now,
                 "current_now_utc": current_now_utc,
