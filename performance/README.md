@@ -97,6 +97,31 @@ Key env overrides:
 Results are written to `performance/progress_probe_results.json` and the CLI summary
 highlights the highest passing target.
 
+### Progress write probe
+
+When you only need to exercise the video progress write endpoint (PUT
+`/trails/:trailId/items/:itemId/progress`), run:
+
+```bash
+k6 run performance/k6/progress_write.test.js
+```
+
+Environment overrides:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PROGRESS_WRITE_RPS` | `15` | Target arrival rate for the write scenario. |
+| `PROGRESS_WRITE_DURATION` | `2m` | Steady-state duration at the target rate. |
+| `PROGRESS_WRITE_WARMUP` | `30s` | Ramp-up period before hitting the target rate. |
+| `PROGRESS_WRITE_COOLDOWN` | `30s` | Cooldown period after the main phase. |
+| `PROGRESS_WRITE_PRE_ALLOCATED_VUS` | `20` | Pre-allocated virtual users for the scenario. |
+| `PROGRESS_WRITE_MAX_VUS` | `80` | Maximum virtual users k6 can scale to during the run. |
+| `PROGRESS_WRITE_FAILURE_TOLERANCE` | `0.02` | Maximum acceptable failure rate before the test aborts. |
+
+The script reuses the same bootstrap routine as the other probes (login, trail
+enrolment and dataset hydration) and writes a summary report to
+`performance/progress_write_results.json`.
+
 #### Measuring memory usage during the run
 
 The helper script `scripts/monitor_memory.py` samples RSS/VMS of the uvicorn worker while
