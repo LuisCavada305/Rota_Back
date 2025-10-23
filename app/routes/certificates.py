@@ -86,6 +86,7 @@ def get_certificate_for_my_trail(trail_id: int):
     row = cert_repo.get_details_for_user_trail(user.user_id, trail_id)
     if not row:
         UserTrailsRepository(db).sync_user_trail_progress(user.user_id, trail_id)
+        db.commit()
         row = cert_repo.get_details_for_user_trail(user.user_id, trail_id)
         if not row:
             abort(404, description="Certificado não encontrado para esta trilha")
