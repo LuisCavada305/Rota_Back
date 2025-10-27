@@ -83,66 +83,67 @@ jobs:
         env:
           RELEASE_ID: ${{ env.RELEASE_ID }}
         run: |
-          ssh "${REMOTE_USER}@${REMOTE_HOST}" 'bash -s' <<EOF
-set -euo pipefail
+          ssh "${REMOTE_USER}@${REMOTE_HOST}" 'bash -s' <<'EOF'
+            set -euo pipefail
 
-BASE="${REMOTE_PATH}"
-REL_DIR="\$BASE/releases/${RELEASE_ID}"
-CUR_LINK="\$BASE/current"
-ENV_FILE="\$BASE/.env"
-COMPOSE_PROJECT="\${DOCKER_PROJECT:-rota_backend}"
-HEALTH_URL="\${HEALTHCHECK_URL:-}"
+            BASE="${REMOTE_PATH}"
+            REL_DIR="$BASE/releases/${RELEASE_ID}"
+            CUR_LINK="$BASE/current"
+            ENV_FILE="$BASE/.env"
+            COMPOSE_PROJECT="${DOCKER_PROJECT:-rota_backend}"
+            HEALTH_URL="${HEALTHCHECK_URL:-}"
 
-if [ ! -f "\$ENV_FILE" ]; then
-  echo "Arquivo de ambiente \$ENV_FILE não encontrado. Crie-o via secrets (ENV_FILE_PROD)." >&2
-  exit 1
-fi
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "Arquivo de ambiente $ENV_FILE não encontrado. Crie-o via secrets (ENV_FILE_PROD)." >&2
+              exit 1
+            fi
 
-COMPOSE_CMD="docker compose"
-if ! docker compose version >/dev/null 2>&1; then
-  if command -v docker-compose >/dev/null 2>&1; then
-    COMPOSE_CMD="docker-compose"
-  else
-    echo "Nem 'docker compose' nem 'docker-compose' estão disponíveis no servidor." >&2
-    exit 1
-  fi
-fi
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              if command -v docker-compose >/dev/null 2>&1; then
+                COMPOSE_CMD="docker-compose"
+              else
+                echo "Nem 'docker compose' nem 'docker-compose' estão disponíveis no servidor." >&2
+                exit 1
+              fi
+            fi
 
-PREV_DIR=""
-if [ -L "\$CUR_LINK" ] || [ -d "\$CUR_LINK" ]; then
-  PREV_DIR=\$(readlink -f "\$CUR_LINK" || true)
-fi
+            PREV_DIR=""
+            if [ -L "$CUR_LINK" ] || [ -d "$CUR_LINK" ]; then
+              PREV_DIR=$(readlink -f "$CUR_LINK" || true)
+            fi
 
-ln -sfn "\$REL_DIR" "\$CUR_LINK"
+            ln -sfn "$REL_DIR" "$CUR_LINK"
 
-cd "\$REL_DIR"
+            cd "$REL_DIR"
 
-\$COMPOSE_CMD -p "\$COMPOSE_PROJECT" --env-file "\$ENV_FILE" pull --ignore-pull-failures || true
-\$COMPOSE_CMD -p "\$COMPOSE_PROJECT" --env-file "\$ENV_FILE" up -d --build --remove-orphans
+            $COMPOSE_CMD -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" pull --ignore-pull-failures || true
+            $COMPOSE_CMD -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d --build --remove-orphans
 
-if [ -z "\$HEALTH_URL" ]; then
-  HEALTH_URL="http://127.0.0.1:8000/healthz"
-fi
+            if [ -z "$HEALTH_URL" ]; then
+              HEALTH_URL="http://127.0.0.1:8000/healthz"
+            fi
 
-ok=0
-for i in \$(seq 1 15); do
-  sleep 4
-  if curl -fsS --max-time 4 "\$HEALTH_URL" >/dev/null; then
-    ok=1
-    break
-  fi
-done
+            ok=0
+            for i in $(seq 1 15); do
+              sleep 4
+              if curl -fsS --max-time 4 "$HEALTH_URL" >/dev/null; then
+                ok=1
+                break
+              fi
+            done
 
-if [ "\$ok" -ne 1 ]; then
-  echo "Healthcheck falhou. Efetuando rollback..." >&2
-  if [ -n "\$PREV_DIR" ] && [ -d "\$PREV_DIR" ]; then
-    ln -sfn "\$PREV_DIR" "\$CUR_LINK"
-    cd "\$PREV_DIR"
-    \$COMPOSE_CMD -p "\$COMPOSE_PROJECT" --env-file "\$ENV_FILE" up -d --build --remove-orphans || true
-  fi
-  exit 1
-fi
+            if [ "$ok" -ne 1 ]; then
+              echo "Healthcheck falhou. Efetuando rollback..." >&2
+              if [ -n "$PREV_DIR" ] && [ -d "$PREV_DIR" ]; then
+                ln -sfn "$PREV_DIR" "$CUR_LINK"
+                cd "$PREV_DIR"
+                $COMPOSE_CMD -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d --build --remove-orphans || true
+              fi
+              exit 1
+            fi
 
-# limpeza de releases antigos (mantém 5)
-ls -1dt "\$BASE/releases"/* | tail -n +6 | xargs -r rm -rf
+            # limpeza de releases antigos (mantém 5)
+            ls -1dt "$BASE/releases"/* | tail -n +6 | xargs -r rm -rf
+
 EOF
