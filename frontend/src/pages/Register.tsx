@@ -116,7 +116,7 @@ export default function Register() {
                                         onChange={(e) => setUsername(e.target.value)}
                                     />
                                 </div>
-        
+
                                 <div className="form-field">
                                     <input
                                         type="text"
@@ -218,7 +218,7 @@ export default function Register() {
                                         {showPassword ? EyeOffIcon : EyeIcon}
                                     </button>
                                 </div>
-                
+
                 <div className="login-aux">
                     <label className="form-check">
                         <input
@@ -232,7 +232,7 @@ export default function Register() {
                         <span className="form-check-label">Concordo com o Termos e Serviços</span>
                     </label>
                 </div>
-            
+
                 {err && <div className="login-error" role="alert" aria-live="polite">{err}</div>}
 
                 <button type="submit" className="btn btn-primary btn-block" disabled={loading}>

@@ -21,7 +21,7 @@ export default function CookieError() {
 
   return (
     <div className="cookie-error" role="alert" aria-live="polite">
-      Erro: seu navegador bloqueia ou não oferece suporte a cookies.  
+      Erro: seu navegador bloqueia ou não oferece suporte a cookies.
       Você precisa ativar os cookies para usar o sistema.
     </div>
   );

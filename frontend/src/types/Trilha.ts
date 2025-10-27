@@ -7,8 +7,8 @@ export type Trilha = {
   review_count?: number;
   botaoLabel?: string;      // opcional
   description?: string | null;
-  requirements?: string[];  
-  targetAudience?: string[]; 
+  requirements?: string[];
+  targetAudience?: string[];
   includedItems?: string[];
   progress_percent?: number;
   status?: string;

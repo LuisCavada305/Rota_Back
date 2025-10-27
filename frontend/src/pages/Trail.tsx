@@ -1103,7 +1103,7 @@ export default function Trail() {
       </div>
     </div>
   );
-})} 
+})}
 
       </aside>
       <div

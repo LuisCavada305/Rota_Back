@@ -88,7 +88,7 @@ export default function Login() {
             </div>
 
             <div className="form-field">
-              <input 
+              <input
                 type="password"
                 className="form-control with-icon icon-lock"
                 placeholder="Senha"
@@ -120,7 +120,7 @@ export default function Login() {
                 Esqueceu sua senha?
               </NavLink>
             </div>
-           
+
             {err && <div className="login-error" role="alert" aria-live="polite">{err}</div>}
 
             <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
