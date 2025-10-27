@@ -2,40 +2,45 @@ name: Backend Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
+
+concurrency:
+  group: backend-deploy
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     env:
       REMOTE_HOST: ${{ secrets.DEPLOY_HOST }}
       REMOTE_USER: ${{ secrets.DEPLOY_USER }}
-      REMOTE_PATH: ${{ secrets.DEPLOY_PATH }}
+      REMOTE_PATH: ${{ secrets.DEPLOY_PATH }}   # ex: /opt/rota/backend
+      PYTHON_VERSION: "3.12"
+      DOCKER_PROJECT: ${{ secrets.DOCKER_PROJECT }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          restore-keys: ${{ runner.os }}-pip-
 
-      - name: Install dependencies
+      - name: Install deps (CI)
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # se tiver testes pesados que exigem serviços externos, use tox/mocks
 
       - name: Run tests
         run: pytest -v
@@ -50,7 +55,7 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
 
-      - name: Upload environment file (optional)
+      - name: Upload .env (opcional)
         if: ${{ secrets.ENV_FILE_PROD != '' }}
         env:
           ENV_FILE_PROD: ${{ secrets.ENV_FILE_PROD }}
@@ -59,29 +64,85 @@ jobs:
           printf '%s\n' "${ENV_FILE_PROD}" > "$tmp_env"
           scp "$tmp_env" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/.env"
           rm -f "$tmp_env"
+          ssh "${REMOTE_USER}@${REMOTE_HOST}" "chmod 600 ${REMOTE_PATH}/.env || true"
 
-      - name: Sync project to server
+      - name: Rsync source to server (staging dir)
         run: |
+          RELEASE_ID="$(date +'%Y%m%d%H%M%S')"
+          echo "RELEASE_ID=${RELEASE_ID}" >> $GITHUB_ENV
+          ssh "${REMOTE_USER}@${REMOTE_HOST}" "mkdir -p ${REMOTE_PATH}/releases/${RELEASE_ID}"
           rsync -az --delete \
             --exclude '.git' \
             --exclude 'venv' \
             --exclude '.venv' \
             --exclude '__pycache__' \
             --exclude '.env' \
-            ./ "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
+            ./ "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/releases/${RELEASE_ID}/"
 
-      - name: Apply remote updates
+      - name: Activate release, build containers, restart stack (with healthcheck & rollback)
+        env:
+          RELEASE_ID: ${{ env.RELEASE_ID }}
         run: |
-          ssh "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF'
-            set -e
-            cd "${REMOTE_PATH}"
-            python3 -m venv .venv || true
-            source .venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
-            # Execute migrações ou scripts adicionais aqui:
-            # alembic upgrade head
-            sudo systemctl start postgresql.service || true
-            sudo systemctl start redis-server.service || true
-            sudo systemctl restart rota-backend.service
-          EOF
+          ssh "${REMOTE_USER}@${REMOTE_HOST}" 'bash -s' <<EOF
+set -euo pipefail
+
+BASE="${REMOTE_PATH}"
+REL_DIR="\$BASE/releases/${RELEASE_ID}"
+CUR_LINK="\$BASE/current"
+ENV_FILE="\$BASE/.env"
+COMPOSE_PROJECT="\${DOCKER_PROJECT:-rota_backend}"
+HEALTH_URL="\${HEALTHCHECK_URL:-}"
+
+if [ ! -f "\$ENV_FILE" ]; then
+  echo "Arquivo de ambiente \$ENV_FILE não encontrado. Crie-o via secrets (ENV_FILE_PROD)." >&2
+  exit 1
+fi
+
+COMPOSE_CMD="docker compose"
+if ! docker compose version >/dev/null 2>&1; then
+  if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD="docker-compose"
+  else
+    echo "Nem 'docker compose' nem 'docker-compose' estão disponíveis no servidor." >&2
+    exit 1
+  fi
+fi
+
+PREV_DIR=""
+if [ -L "\$CUR_LINK" ] || [ -d "\$CUR_LINK" ]; then
+  PREV_DIR=\$(readlink -f "\$CUR_LINK" || true)
+fi
+
+ln -sfn "\$REL_DIR" "\$CUR_LINK"
+
+cd "\$REL_DIR"
+
+\$COMPOSE_CMD -p "\$COMPOSE_PROJECT" --env-file "\$ENV_FILE" pull --ignore-pull-failures || true
+\$COMPOSE_CMD -p "\$COMPOSE_PROJECT" --env-file "\$ENV_FILE" up -d --build --remove-orphans
+
+if [ -z "\$HEALTH_URL" ]; then
+  HEALTH_URL="http://127.0.0.1:8000/healthz"
+fi
+
+ok=0
+for i in \$(seq 1 15); do
+  sleep 4
+  if curl -fsS --max-time 4 "\$HEALTH_URL" >/dev/null; then
+    ok=1
+    break
+  fi
+done
+
+if [ "\$ok" -ne 1 ]; then
+  echo "Healthcheck falhou. Efetuando rollback..." >&2
+  if [ -n "\$PREV_DIR" ] && [ -d "\$PREV_DIR" ]; then
+    ln -sfn "\$PREV_DIR" "\$CUR_LINK"
+    cd "\$PREV_DIR"
+    \$COMPOSE_CMD -p "\$COMPOSE_PROJECT" --env-file "\$ENV_FILE" up -d --build --remove-orphans || true
+  fi
+  exit 1
+fi
+
+# limpeza de releases antigos (mantém 5)
+ls -1dt "\$BASE/releases"/* | tail -n +6 | xargs -r rm -rf
+EOF

@@ -15,7 +15,6 @@ WORKDIR ${APP_HOME}
 COPY requirements.txt ./requirements.txt
 
 RUN python -m pip install --upgrade pip \
-    && python -m pip install gunicorn \
     && python -m pip install -r requirements.txt
 
 COPY . ${APP_HOME}
@@ -26,8 +25,11 @@ RUN useradd --create-home --shell /bin/bash appuser \
 
 USER appuser
 
-ENV GUNICORN_CMD_ARGS="--workers 3 --worker-class gthread --threads 4 --worker-tmp-dir /dev/shm --bind 0.0.0.0:8000 --keep-alive 90 --timeout 90"
+ENV UVICORN_WORKERS=4 \
+    UVICORN_KEEP_ALIVE=5 \
+    UVICORN_HOST=0.0.0.0 \
+    UVICORN_PORT=8000
 
 EXPOSE 8000
 
-CMD ["gunicorn", "app.main:app"]
+CMD ["sh", "-c", "uvicorn app.asgi:app --host ${UVICORN_HOST:-0.0.0.0} --port ${UVICORN_PORT:-8000} --workers ${UVICORN_WORKERS:-4} --timeout-keep-alive ${UVICORN_KEEP_ALIVE:-60} --proxy-headers --forwarded-allow-ips '*'"]

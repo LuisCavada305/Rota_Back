@@ -6,9 +6,9 @@ services:
       context: ./docker/postgres
     container_name: rota-postgres
     environment:
-      POSTGRES_DB: rota
-      POSTGRES_USER: rota
-      POSTGRES_PASSWORD: rota_password
+      POSTGRES_DB: rota-db
+      POSTGRES_USER: rota-user
+      POSTGRES_PASSWORD: rota_password_123
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=pt_BR.UTF-8 --data-checksums"
     volumes:
       - pg_data:/var/lib/postgresql/data
@@ -59,18 +59,20 @@ services:
       DB_ENGINE: postgresql+psycopg
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: rota
-      DB_USER: rota
-      DB_PASS: rota_password
+      DB_NAME: rota-db
+      DB_USER: rota-user
+      DB_PASS: rota_password_123
       DB_POOL_SIZE: 12
       DB_MAX_OVERFLOW: 6
       DB_POOL_TIMEOUT: 30
       DB_POOL_RECYCLE: 1800
-      JWT_SECRET: altere_este_valor
-      CSRF_SECRET: altere_este_valor_tambem
+      JWT_SECRET: b9178db8999f0fd224c7e97acb9e7d2e
+      CSRF_SECRET: 5f6c6ed1a9d44716a198ce7a810cdc2d
       REDIS_URL: redis://redis:6379/0
       AUTH_RATE_LIMIT_WINDOW_SECONDS: 60
       AUTH_RATE_LIMIT_MAX_ATTEMPTS: 5
+      UVICORN_WORKERS: 4
+      UVICORN_KEEP_ALIVE: 5
     ports:
       - "8000:8000"
     restart: unless-stopped

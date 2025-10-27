@@ -35,3 +35,4 @@ virtualenv==20.34.0
 segno==1.6.1
 bleach==6.2.0
 redis==5.0.8
+uvicorn[standard]==0.30.3
