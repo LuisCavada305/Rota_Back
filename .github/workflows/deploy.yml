@@ -83,7 +83,7 @@ jobs:
         env:
           RELEASE_ID: ${{ env.RELEASE_ID }}
         run: |
-          ssh "${REMOTE_USER}@${REMOTE_HOST}" "REMOTE_PATH='${REMOTE_PATH}' DOCKER_PROJECT='${DOCKER_PROJECT}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' bash -s" <<'EOF'
+          ssh "${REMOTE_USER}@${REMOTE_HOST}" "RELEASE_ID='${RELEASE_ID}' REMOTE_PATH='${REMOTE_PATH}' DOCKER_PROJECT='${DOCKER_PROJECT}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' bash -s" <<'EOF'
             set -euo pipefail
 
             BASE="${REMOTE_PATH}"
