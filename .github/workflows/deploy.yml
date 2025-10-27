@@ -56,7 +56,7 @@ jobs:
           ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
 
       - name: Upload .env (opcional)
-        if: ${{ secrets.ENV_FILE_PROD != '' }}
+        if: ${{ secrets.ENV_FILE_PROD }}
         env:
           ENV_FILE_PROD: ${{ secrets.ENV_FILE_PROD }}
         run: |
