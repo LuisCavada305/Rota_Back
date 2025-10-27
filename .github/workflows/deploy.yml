@@ -146,4 +146,4 @@ jobs:
             # limpeza de releases antigos (mantém 5)
             ls -1dt "$BASE/releases"/* | tail -n +6 | xargs -r rm -rf
 
-EOF
+          EOF
