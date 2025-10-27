@@ -125,16 +125,26 @@ jobs:
             fi
 
             ok=0
+            status_code=000
+            resp_tmp="$(mktemp)"
+            trap 'rm -f "$resp_tmp"' EXIT
             for i in $(seq 1 15); do
               sleep 4
-              if curl -fsS --max-time 4 "$HEALTH_URL" >/dev/null; then
+              status_code="$(curl -sS --max-time 4 --connect-timeout 2 -o "$resp_tmp" -w '%{http_code}' "$HEALTH_URL" || true)"
+              if [ "$status_code" = "200" ]; then
                 ok=1
                 break
               fi
             done
 
             if [ "$ok" -ne 1 ]; then
-              echo "Healthcheck falhou. Efetuando rollback..." >&2
+              echo "Healthcheck falhou (status $status_code). Corpo da resposta:" >&2
+              cat "$resp_tmp" >&2 || true
+              echo "------ docker compose ps ------" >&2
+              $COMPOSE_CMD -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" ps >&2 || true
+              echo "------ docker compose logs (tail 150) ------" >&2
+              $COMPOSE_CMD -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" logs --tail=150 >&2 || true
+              echo "Efetuando rollback..." >&2
               if [ -n "$PREV_DIR" ] && [ -d "$PREV_DIR" ]; then
                 ln -sfn "$PREV_DIR" "$CUR_LINK"
                 cd "$PREV_DIR"
@@ -142,6 +152,8 @@ jobs:
               fi
               exit 1
             fi
+
+            rm -f "$resp_tmp"
 
             # limpeza de releases antigos (mantém 5)
             ls -1dt "$BASE/releases"/* | tail -n +6 | xargs -r rm -rf
