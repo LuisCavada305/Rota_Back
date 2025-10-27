@@ -67,6 +67,11 @@ def create_app() -> Flask:
     app.register_blueprint(admin_bp)
 
     app.teardown_appcontext(close_db)
+
+    @app.route("/healthz", methods=["GET", "HEAD"])
+    def healthz():
+        return ("", 200)
+
     return app
 
 

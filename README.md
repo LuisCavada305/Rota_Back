@@ -39,6 +39,25 @@ parâmetros seguros configuráveis por variáveis de ambiente.
 > e exige `CSRF_SECRET`. Configure também HTTPS terminado no proxy ou load balancer
 > para que os cookies seguros sejam ativados automaticamente.
 
+### HTTPS com proxy Nginx
+
+O `docker-compose.yml` inclui o serviço `proxy`, que termina TLS nas portas 80/443 e repassa o tráfego para a API Flask.
+Para habilitar HTTPS coloque os certificados em `certs/` (diretório não versionado) com os nomes:
+
+```
+certs/
+ ├─ server.crt   # certificado público (cadeia completa)
+ └─ server.key   # chave privada correspondente
+```
+
+Depois suba (ou recrie) a stack:
+
+```bash
+docker compose -p rota_backend --env-file ../.env up -d --build --remove-orphans
+```
+
+Se utilizar a pipeline do GitHub Actions, certifique-se de que esses arquivos já existam na VPS antes de executar o deploy. Para ambientes públicos, use certificados válidos (ex.: Let's Encrypt) e mantenha o healthcheck interno em `http://127.0.0.1:8000/healthz`, expondo externamente `https://seu-dominio`.
+
 ## Rate limiting
 
 O serviço aplica rate limiting nas rotas sensíveis (login, registro, reset de senha). Por
