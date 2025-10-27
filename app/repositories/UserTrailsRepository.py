@@ -192,6 +192,12 @@ class UserTrailsRepository:
         if sync:
             for trail_id in ids:
                 self.sync_user_trail_progress(user_id, trail_id)
+            # Persist any updates (including newly issued certificates) triggered by
+            # the synchronization before returning progress information. Without an
+            # explicit commit the session would roll back at the end of the request
+            # lifecycle, causing the emitted certificate data to be lost if the
+            # process crashes.
+            self.db.commit()
 
         totals = self._count_items_for_trails(ids)
         done_map = self._done_items_for_trails(user_id, ids)
