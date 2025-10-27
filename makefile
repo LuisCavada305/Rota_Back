@@ -32,7 +32,6 @@ run: install-dev certs
 	FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT) \
 	  --cert "$(CERT_CRT)" --key "$(CERT_KEY)"
 
-
 run-http: install-dev
 	FLASK_DEBUG=1 flask --app $(APP) run --host $(HOST) --port $(PORT)
 
