@@ -1,0 +1,61 @@
+/* AuthGate.css */
+
+.auth-overlay {
+  position: fixed;
+  inset: 0; /* top:0, right:0, bottom:0, left:0 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+}
+
+.auth-modal {
+  background: #ffffff;
+  color: #111827; /* quase preto */
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.auth-modal h2 {
+  font-size: 1.125rem; /* ~18px */
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.auth-modal p {
+  font-size: 0.875rem; /* ~14px */
+  opacity: 0.8;
+  margin: 0;
+}
+
+.auth-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.auth-btn {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.auth-btn.close {
+  border: 1px solid #d1d5db;
+  background: transparent;
+}
+
+.auth-btn.login {
+  background: #2563eb;
+  color: white;
+  border: none;
+}
+.auth-btn.login:hover {
+  background: #1e40af;
+}

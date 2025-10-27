@@ -1,0 +1,576 @@
+.certificate-page {
+  background: #f5f7fb;
+  padding: 16px 0 24px;
+}
+
+.certificate-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 12px;
+  font-family: "Poppins", sans-serif;
+  color: #1f2937;
+}
+
+.certificate-status {
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  text-align: center;
+  font-weight: 600;
+}
+
+.certificate-status.error {
+  border-color: #f87171;
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.certificate-title {
+  font-size: 30px;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.certificate-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: center;
+  width: 100%;
+}
+
+.certificate-stage {
+  width: 100%;
+  max-width: 900px;
+  position: relative;
+}
+
+.certificate-scale {
+  width: 900px;
+  transform-origin: top center;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+}
+
+.certificate-frame {
+  width: 900px;
+  border-radius: 24px;
+  background: #fefefe;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.certificate-border {
+  flex: 1;
+  margin: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 14px solid transparent;
+  border-image: repeating-linear-gradient(
+      120deg,
+      rgba(203, 213, 225, 0.9) 0,
+      rgba(203, 213, 225, 0.9) 12px,
+      rgba(148, 163, 184, 0.2) 12px,
+      rgba(148, 163, 184, 0.2) 24px
+    ) 32;
+  background: #fff;
+  display: flex;
+}
+
+.certificate-inner {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 16px;
+  padding: 16px 24px 20px;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  row-gap: 10px;
+  background: #fff;
+  position: relative;
+}
+
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.sheet-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.sheet-brand img {
+  width: 32px;
+  height: auto;
+}
+
+.sheet-credential {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+
+.sheet-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  text-align: center;
+  margin: 3px auto 0;
+  max-width: 100%;
+}
+
+.sheet-title {
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+}
+.sheet-subtitle {
+  font-size: 20px;
+  letter-spacing: 0.38em;
+  text-transform: uppercase;
+  color: #475569;
+  font-weight: 600;
+  display: block;
+  text-align: center;
+}
+
+.sheet-body {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 auto;
+  align-items: center;
+}
+
+.sheet-text {
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.sheet-name {
+  font-size: 34px;
+  font-family: "Playfair Display", "Times New Roman", serif;
+  color: #0f172a;
+  margin: 0;
+  font-weight: 700;
+}
+
+.sheet-course {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1d4ed8;
+  margin: 0;
+}
+
+.sheet-name-line {
+  display: block;
+  width: 700px;
+  max-width: 80%;
+  margin: 6px auto;
+  border-bottom: 3px dotted rgba(148, 163, 184, 0.7);
+}
+
+.sheet-divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0),
+    rgba(100, 116, 139, 0.45),
+    rgba(148, 163, 184, 0)
+  );
+  border-radius: 999px;
+  margin: 0;
+}
+
+.sheet-footer {
+  display: grid;
+  grid-template-columns: 220px 1fr 220px;
+  gap: 18px;
+  align-items: flex-end;
+}
+
+.sheet-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.sheet-qr img {
+  width: 96px;
+  height: 96px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+  object-fit: contain;
+}
+
+.sheet-qr-caption {
+  font-size: 13px;
+  color: #475569;
+  letter-spacing: 0.06em;
+}
+
+.sheet-issue {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.sheet-label {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.sheet-value {
+  font-size: 16px;
+  color: #1f2937;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  word-break: break-word;
+}
+
+.sheet-signature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.sheet-signature-line {
+  width: 200px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.2), rgba(79, 70, 229, 0.45));
+}
+
+.sheet-signature-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-align: center;
+}
+
+.sheet-signature-role {
+  font-size: 13px;
+  color: #475569;
+}
+
+.certificate-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  width: 100%;
+  background: #fff;
+  padding: 18px 22px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.certificate-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 15px;
+}
+
+.certificate-meta strong {
+  color: #6b7280;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.certificate-meta span {
+  font-weight: 600;
+  color: #1f2937;
+  word-break: break-word;
+}
+
+.certificate-link {
+  color: #2563eb;
+  text-decoration: none;
+  word-break: break-word;
+}
+
+.certificate-link:hover {
+  text-decoration: underline;
+}
+
+.certificate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.certificate-download {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color .2s ease, transform .2s ease;
+}
+
+.certificate-download:disabled {
+  opacity: .7;
+  cursor: wait;
+}
+
+.certificate-download:not(:disabled):hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.certificate-download-error {
+  padding: 12px 16px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #b91c1c;
+  font-weight: 500;
+  text-align: center;
+  max-width: 480px;
+}
+
+@media (max-width: 780px) {
+  .sheet-footer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-items: center;
+    text-align: center;
+  }
+  .sheet-issue {
+    align-items: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .certificate-frame {
+    --cert-width: min(100%, 720px);
+  }
+  .sheet-footer {
+    grid-template-columns: 1fr;
+    gap: clamp(16px, 4vw, 22px);
+    justify-items: center;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+  .certificate-page {
+    padding: 0;
+    background: #fff;
+  }
+  .certificate-container,
+  .certificate-wrapper {
+    margin: 0;
+    padding: 0;
+  }
+  .certificate-meta,
+  .certificate-actions,
+  .certificate-download-error,
+  .certificate-title {
+    display: none !important;
+  }
+  .certificate-frame {
+    box-shadow: none;
+    width: 100%;
+  }
+}
+
+/* Mantém o palco relativo e centralizado */
+.certificate-stage {
+  position: relative;
+  width: 100%;
+  max-width: 900px;   /* evita overflow em telas grandes */
+  margin: 0 auto;
+}
+
+/* Elemento escalado; 900px é a largura de design do certificado */
+.certificate-scale {
+  width: 900px;
+  transform-origin: top center;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+}
+
+/* Consistência de layout (Firefox costuma diferir com transform) */
+.certificate-page,
+.certificate-container,
+.certificate-wrapper,
+.certificate-stage,
+.certificate-scale,
+.certificate-frame,
+.certificate-border,
+.certificate-inner {
+  box-sizing: border-box;
+}
+
+/* Evita qualquer scroll lateral por causa do transform/scale */
+.certificate-page {
+  overflow-x: hidden;
+}
+
+/* Palco e elemento escalado (já existiam — reforço) */
+.certificate-stage {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.certificate-scale {
+  width: 900px;
+  transform-origin: top center;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  /* ajuda de antialias no Firefox */
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+/* Evita que o transform aplique dithering em bordas em alguns FF */
+.certificate-frame {
+  will-change: transform;
+}
+
+/* Em impressão, remova o scale e deixe 100% */
+@media print {
+  .certificate-scale {
+    position: static;
+    transform: none !important;
+    translate: none !important;
+    width: 100% !important;
+  }
+  .certificate-stage {
+    height: auto !important;
+  }
+}
+
+/* ======== Congela layout de desktop dentro do certificado ======== */
+.certificate-freeze .sheet-footer {
+  /* força as 3 colunas do desktop, ignorando media queries */
+  grid-template-columns: 220px 1fr 220px !important;
+  gap: 18px !important;
+  align-items: flex-end !important;
+  justify-items: initial !important;
+  text-align: initial !important;
+}
+
+.certificate-freeze .sheet-issue {
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+
+/* Se algum elemento for reestilizado nas media queries,
+   restaure aqui o "desktop default" com !important */
+.certificate-freeze .certificate-frame {
+  width: 900px !important;
+}
+
+.certificate-freeze .sheet-headline,
+.certificate-freeze .sheet-body,
+.certificate-freeze .sheet-signature,
+.certificate-freeze .sheet-qr {
+  text-align: initial !important;
+}
+
+.certificate-freeze .sheet-qr img {
+  width: 96px !important;
+  height: 96px !important;
+}
+
+/* Evita a regra mobile que mexe na largura via custom prop */
+.certificate-freeze .certificate-frame {
+  --cert-width: 900px !important;
+}
+
+/* ====== Congelar layout desktop DENTRO do certificado ====== */
+.certificate-freeze .sheet-footer {
+  grid-template-columns: 220px 1fr 220px !important;
+  gap: 18px !important;
+  align-items: flex-end !important;
+  justify-items: initial !important;
+  text-align: initial !important;
+}
+
+.certificate-freeze .sheet-issue {
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+
+/* Evita que alguma regra mobile altere a largura do frame */
+.certificate-freeze .certificate-frame {
+  width: 900px !important;
+  --cert-width: 900px !important;
+}
+
+/* Não centralizar forçadamente em mobile */
+.certificate-freeze .sheet-headline,
+.certificate-freeze .sheet-body,
+.certificate-freeze .sheet-signature,
+.certificate-freeze .sheet-qr {
+  text-align: initial !important;
+}
+
+.certificate-freeze .sheet-qr img {
+  width: 96px !important;
+  height: 96px !important;
+}
+
+/* E, por via das dúvidas, re-aplique dentro dos mesmos breakpoints: */
+@media (max-width: 780px) {
+  .certificate-freeze .sheet-footer {
+    grid-template-columns: 220px 1fr 220px !important;
+    justify-items: initial !important;
+    text-align: initial !important;
+  }
+  .certificate-freeze .sheet-issue {
+    align-items: flex-start !important;
+    text-align: left !important;
+  }
+}
+@media (max-width: 600px) {
+  .certificate-freeze .certificate-frame {
+    width: 900px !important;
+    --cert-width: 900px !important;
+  }
+  .certificate-freeze .sheet-footer {
+    grid-template-columns: 220px 1fr 220px !important;
+    gap: 18px !important;
+  }
+}

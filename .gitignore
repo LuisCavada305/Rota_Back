@@ -11,3 +11,4 @@ perf_progress_mem.csv
 performance/progress_probe_results.json
 performance/rps_results.json
 scripts/monitor_memory.py
+frontend_dist/

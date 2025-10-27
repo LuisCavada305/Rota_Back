@@ -58,6 +58,48 @@ docker compose -p rota_backend --env-file ../.env up -d --build --remove-orphans
 
 Se utilizar a pipeline do GitHub Actions, certifique-se de que esses arquivos já existam na VPS antes de executar o deploy. Para ambientes públicos, use certificados válidos (ex.: Let's Encrypt) e mantenha o healthcheck interno em `http://127.0.0.1:8000/healthz`, expondo externamente `https://seu-dominio`.
 
+### Servindo o front-end com o mesmo proxy
+
+O serviço `proxy` também entrega o build do Vite. O arquivo `docker/proxy/nginx.conf` define dois hosts virtuais:
+
+- `api.*` → proxy para a API Flask (`http://api:8000`)
+- `app.*` → arquivos estáticos em `/usr/share/nginx/html`
+
+Para publicar o front:
+
+1. Gere/renove o certificado incluindo ambos os domínios (ex.: `api.72-61-32-2.nip.io` e `app.72-61-32-2.nip.io`). O `nip.io` é aceito pela Let's Encrypt e evita o limite que atingimos com `sslip.io`:
+   ```bash
+   sudo certbot certonly --standalone \
+     -d api.72-61-32-2.nip.io \
+     -d app.72-61-32-2.nip.io
+   sudo cp /etc/letsencrypt/live/api.72-61-32-2.nip.io/fullchain.pem /opt/rota/backend/certs/server.crt
+   sudo cp /etc/letsencrypt/live/api.72-61-32-2.nip.io/privkey.pem   /opt/rota/backend/certs/server.key
+   sudo chmod 600 /opt/rota/backend/certs/server.key
+   ```
+
+2. Faça o build do front (no repositório `rota-frontend`):
+   ```bash
+   npm install
+   npm run build
+   ```
+   Copie o resultado para `ROTA_Back/frontend_dist/` (diretório ignorado pelo git). Exemplo:
+   ```bash
+   rm -rf ../ROTA_Back/frontend_dist
+   mkdir -p ../ROTA_Back/frontend_dist
+   cp -r dist/* ../ROTA_Back/frontend_dist/
+   ```
+   No servidor, basta sincronizar a pasta `frontend_dist/` antes do deploy (ex.: `rsync -az dist/ usuario@servidor:/opt/rota/backend/releases/<release>/frontend_dist/`).
+
+3. Reinicie os containers:
+   ```bash
+   cd ../ROTA_Back
+   docker compose -p rota_backend --env-file ../.env up -d --build --remove-orphans
+   ```
+
+4. Atualize o backend (`CORS_ALLOWED_ORIGENS`) para incluir `https://app.72-61-32-2.nip.io` e configure o front (`VITE_API_BASE_URL`/`apiHost.json`) apontando para `https://api.72-61-32-2.nip.io`.
+
+Com isso o portal fica acessível em `https://app.seu-dominio` e a API em `https://api.seu-dominio`, ambos servidos pelo mesmo Nginx com TLS.
+
 ## Rate limiting
 
 O serviço aplica rate limiting nas rotas sensíveis (login, registro, reset de senha). Por

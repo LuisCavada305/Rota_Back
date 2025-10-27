@@ -1,0 +1,6 @@
+{
+  "apiHost": {
+    "development": "http://localhost:3000",
+    "production": "https://api.72-61-32-2.nip.io"
+  }
+}

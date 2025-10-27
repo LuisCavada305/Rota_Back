@@ -1,0 +1,145 @@
+/* ===== Footer.css ===== */
+
+/* Fonte e base */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap');
+
+.bb-footer.style-1 {
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  width: 100%;
+  color: #1e2132;
+}
+
+.bb-footer.style-1 .container {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 14px 24px;            /* altura próxima do tema */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+/* Lado esquerdo */
+.footer-bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.footer-copyright-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.copyright {
+  color: #54595f;
+  font-size: 0.95rem;
+}
+
+/* Menu do rodapé */
+.footer-menu {
+  list-style: none;
+  display: flex;
+  gap: 20px;                      /* espaço entre itens */
+  margin: 0;
+  padding: 0;
+}
+
+.footer-menu .menu-item > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e2132;
+  text-decoration: none;
+  position: relative;
+  padding: 0 0 6px;            /* espaço para underline */
+  transition: color 0.2s ease;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+/* Hover */
+.footer-menu .menu-item > a:hover {
+  color: #0365ba;
+}
+
+/* Ativo (NavLink define classe no <a>) */
+.footer-menu .menu-item > a.is-active {
+  color: #0365ba;
+}
+.footer-menu .menu-item > a.is-active::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: #0365ba;
+  border-radius: 2px;
+}
+
+/* Ícones dos links do menu (SVG Lucide) */
+.footer-menu .menu-item > a svg {
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+}
+
+/* Lado direito (redes sociais) */
+.footer-bottom-right {
+  margin-left: auto;
+}
+
+.footer-socials {
+  list-style: none;
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+}
+
+.footer-socials a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  color: #54595f;
+  text-decoration: none;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease;
+}
+
+.footer-socials a:hover {
+  color: #0365ba;
+  background: #eef6fd; /* highlight azul suave */
+  transform: translateY(-1px);
+}
+
+/* Responsivo */
+@media (max-width: 900px) {
+  .bb-footer.style-1 .container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .footer-bottom-left {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+  }
+
+  .footer-menu {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .footer-bottom-right {
+    align-self: center;
+  }
+}
+
+
